@@ -1,335 +1,3208 @@
-<!doctype html>
-<html lang="it">
+<!DOCTYPE html>
+<html lang="en">
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Foto Sessione</title>
-    <style>
-        :root { color-scheme: dark; }
-        body { margin: 0; font-family: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; background:#0b0f16; color: rgba(255,255,255,.92); }
-        .wrap { max-width: 1100px; margin: 0 auto; padding: 18px; display: grid; gap: 12px; }
-        .card { border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.05); border-radius: 14px; padding: 12px; }
-        .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:space-between; }
-        .btn { border:1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.06); color: rgba(255,255,255,.92); padding:10px 12px; border-radius:12px; font-weight:700; cursor:pointer; }
-        .btn.primary { background: rgba(59,130,246,.35); border-color: rgba(59,130,246,.55); }
-        .muted { color: rgba(255,255,255,.68); font-size: 13px; }
-        .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
-        .item { border:1px solid rgba(255,255,255,.10); background: rgba(0,0,0,.18); border-radius: 14px; overflow:hidden; display:grid; text-decoration: none; color: inherit; }
-        .item img { width:100%; aspect-ratio: 3 / 2; object-fit: cover; display:block; background:#000; }
-        .meta { padding: 10px; display:grid; gap: 8px; }
-        .tag { font-size: 12px; font-weight: 800; letter-spacing:.2px; color: rgba(255,255,255,.86); }
-        a.link { color: rgba(147,197,253,.95); text-decoration: none; word-break: break-all; }
-        a.link:hover { text-decoration: underline; }
-        .warn { color: rgba(251,191,36,.95); font-weight: 800; }
-        input { width: 100%; padding: 10px 12px; border-radius: 12px; border:1px solid rgba(255,255,255,.14); background: rgba(0,0,0,.25); color: rgba(255,255,255,.92); }
-    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Photo Booth</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="wrap">
-        <div class="card">
-            <div class="row">
-                <div>
-                    <div style="font-weight:900; letter-spacing:.2px;">Foto della sessione</div>
-                    <div id="status" class="muted">Caricamento…</div>
-                </div>
-                <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                    <button id="refreshBtn" class="btn" type="button">Aggiorna</button>
-                    <button id="dlAllBtn" class="btn primary" type="button">Scarica tutte</button>
-                </div>
+    <div id="app">
+        <div id="pbBoot" class="pbBoot" aria-hidden="true">JS</div>
+        <input id="eventFrameFile" type="file" accept="image/png" hidden>
+        <input id="eventIntroVideoFile" type="file" accept="video/mp4,video/webm,video/ogg" hidden>
+        <section id="intro" class="page active">
+            <video id="introVideo" class="introVideo" autoplay muted loop playsinline>
+                <source src="assets/intro/intro.mp4" type="video/mp4">
+            </video>
+            <button class="introTap" type="button" data-go="capture" aria-label="Inizia" onclick="window.__pbForcePage='capture';var i=document.getElementById('intro');if(i)i.classList.remove('active');var c=document.getElementById('capture');if(c)c.classList.add('active');"></button>
+        </section>
+
+        <section id="capture" class="page">
+            <div class="layout">
+                <aside class="sidebar">
+                    <div class="sideHeader">
+                        <div class="sideTitle">Cattura</div>
+                        <div class="sideSub">SORRIDI</div>
+                    </div>
+                    <div class="sideActions">
+                        <button class="btn btnPrimary btnLg" type="button" data-go="preview">Scatta</button>
+                    </div>
+                    <button class="adminHotspot" type="button" data-go="admin" aria-label="Apri menu admin">Admin</button>
+                </aside>
+                <main class="stage">
+                    <div class="monitor" aria-label="Anteprima webcam 10×15">
+                        <div class="monitorInner">
+                            <video id="liveVideo" class="monitorMedia monitorVideo mirror" autoplay playsinline muted></video>
+                            <div class="captureGuide" data-capture-guide aria-hidden="true" style="display: none;">
+                                <div class="captureGuideBox" data-capture-guide-box>
+                                    <video id="guideVideo" class="captureGuideVideo mirror" autoplay playsinline muted></video>
+                                </div>
+                            </div>
+                            <div class="eventCaptureOverlay" data-event-capture-overlay aria-hidden="true"></div>
+                            <div id="shotProgress" class="shotProgress" aria-live="polite" aria-atomic="true"></div>
+                            <div id="countdown" class="countdown" aria-live="polite" aria-atomic="true"></div>
+                            <div class="placeholder">Live webcam (10×15)</div>
+                        </div>
+                    </div>
+                </main>
             </div>
-            <div style="height:10px"></div>
-            <div class="muted">Manifest URL:</div>
-            <input id="manifestInput" placeholder="Apri con ?m=... oppure incolla qui" />
-        </div>
+        </section>
 
-        <div id="expiredCard" class="card" style="display:none;">
-            <div class="warn">Sessione scaduta</div>
-            <div class="muted">Questi contenuti erano disponibili solo per un periodo limitato.</div>
-        </div>
+        <section id="admin" class="page">
+            <div class="layout">
+                <aside class="sidebar">
+                    <div class="sideHeader">
+                        <div class="sideTitle">Admin</div>
+                        <div class="sideSub">Impostazioni</div>
+                    </div>
+                    <div class="sideList">
+                        <button class="chip" type="button" data-admin="evento">Evento</button>
+                        <button class="chip" type="button" data-admin="camera">Camera</button>
+                        <button class="chip" type="button" data-admin="stampa">Stampa</button>
+                        <button class="chip" type="button" data-admin="cartelle">Cartelle</button>
+                        <button class="chip" type="button" data-admin="ia">IA</button>
+                        <button class="chip" type="button" data-admin="qrcode">QR Code</button>
+                        <button class="chip" type="button" data-admin="stat">Stat</button>
+                    </div>
+                    <div class="sideActions">
+                        <button class="btn btnGhost btnLg" type="button" data-go="intro">Esci</button>
+                    </div>
+                </aside>
+                <main class="stage">
+                    <div class="adminPanels">
+                        <section class="adminPanel active" data-admin-panel="evento" aria-label="Impostazioni evento">
+                            <div class="adminEvent">
+                                <div class="adminHeader">
+                                    <div class="adminTitle">Evento</div>
+                                    <div class="adminSub">Gestione impostazioni e layout</div>
+                                </div>
 
-        <div id="grid" class="grid"></div>
+                                <div class="adminEventBody">
+                                    <div class="adminEventLeft">
+                                        <div class="adminForm">
+                                            <input id="eventLayoutJson" type="hidden" value="">
+                                            <input id="eventIntroVideoSrc" type="hidden" value="">
+                                            <div class="field">
+                                                <label class="label" for="eventName">Nome evento</label>
+                                                <input id="eventName" class="input" type="text" value="" placeholder="Scrivi il nome evento">
+                                            </div>
 
-        <div class="card muted">
-            Nota: “Scarica tutte” avvia download multipli. Alcuni browser potrebbero chiedere conferma o bloccarli.
-        </div>
+                                            <div class="row2">
+                                                <div class="field">
+                                                    <label class="label" for="eventRecall">Richiama evento</label>
+                                                    <select id="eventRecall" class="select">
+                                                        <option>Seleziona evento salvato</option>
+                                                        <option>Evento esempio 01</option>
+                                                        <option>Evento esempio 02</option>
+                                                    </select>
+                                                </div>
+                                                <div class="field fieldCompact">
+                                                    <label class="label" aria-hidden="true">&nbsp;</label>
+                                                    <button class="iconBtn" type="button" aria-label="Cancella evento" data-action="delete-event">X</button>
+                                                </div>
+                                            </div>
+
+                                            <div class="field">
+                                                <label class="label" for="monitorOrientation">Orientamento monitor</label>
+                                                <select id="monitorOrientation" class="select">
+                                                    <option>Orizzontale (10×15)</option>
+                                                    <option>Verticale (15×10)</option>
+                                                </select>
+                                            </div>
+
+                                            <div class="row2">
+                                                <div class="field">
+                                                    <label class="label" aria-hidden="true">&nbsp;</label>
+                                                    <button class="btn btnGhost btnSm" type="button" data-action="event-load-frame">Layout</button>
+                                                </div>
+                                                <div class="field">
+                                                    <label class="label" aria-hidden="true">&nbsp;</label>
+                                                    <button class="btn btnGhost btnSm" type="button" data-action="event-load-intro-video">Video intro</button>
+                                                </div>
+                                            </div>
+
+                                            <div class="field">
+                                                <label class="label">Pagine attive</label>
+                                                <div class="checkGrid">
+                                                    <label class="check"><input id="pageIntroEnabled" type="checkbox" checked> Intro</label>
+                                                    <label class="check"><input id="pageStickersEnabled" type="checkbox" checked> Adesivi</label>
+                                                    <label class="check"><input id="pageEffectsEnabled" type="checkbox" checked> Effetti</label>
+                                                    <label class="check"><input id="pageAiEnabled" type="checkbox" checked> IA</label>
+                                                    <label class="check"><input id="pageQrEnabled" type="checkbox" checked> QR Code</label>
+                                                </div>
+                                            </div>
+                                            <button class="btn btnAccent btnSm" type="button" data-action="save-event">Salva</button>
+                                        </div>
+                                    </div>
+
+                                    <div class="adminEventRight">
+                                        <div class="previewWrap">
+                                            <div class="monitor monitorSmall" aria-label="Anteprima layout 10×15">
+                                                <div class="monitorInner">
+                                                    <div class="eventEditorLayer" data-event-editor-layer aria-label="Editor layout evento"></div>
+                                                    <div class="placeholder">Preview layout (10×15)</div>
+                                                </div>
+                                            </div>
+                                            <div class="previewTools">
+                                                <button class="btn btnPrimary btnXs" type="button" data-action="event-add-shot">Scatto</button>
+                                                <button class="btn btnGhost btnXs" type="button" data-action="event-add-guide">Anteprima</button>
+                                                <button class="btn btnGhost btnXs" type="button" data-action="event-load-frame">Cornice</button>
+                                                <label class="check"><input id="layoutKeepProportions" type="checkbox" checked> Mantieni proporzioni</label>
+                                            </div>
+                                            <div class="layers">
+                                                <div class="layersTitle">Livelli</div>
+                                                <div class="layersList">
+                                                    <button class="layerItem" type="button" data-action="event-select-shots" aria-pressed="false">Scatti</button>
+                                                    <button class="layerItem" type="button" data-action="event-select-guide" aria-pressed="false">Anteprima</button>
+                                                    <button class="layerItem" type="button" data-action="event-select-frame" aria-pressed="false">Cornice</button>
+                                                </div>
+                                                <button class="btn btnDanger btnSm" type="button" data-action="event-delete-layer">Elimina livello</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+
+                        <section class="adminPanel" data-admin-panel="camera" aria-label="Impostazioni camera">
+                            <div class="adminCamera">
+                                <div class="adminHeader">
+                                    <div class="adminTitle">Camera</div>
+                                    <div class="adminSub">Sorgente, rotazione e parametri</div>
+                                </div>
+
+                                <div class="adminCameraBody">
+                                    <div class="adminCameraLeft">
+                                        <div class="adminForm">
+                                            <div class="field">
+                                                <label class="label" for="cameraSource">Sorgente video</label>
+                                                <select id="cameraSource" class="select">
+                                                    <option>Seleziona sorgente</option>
+                                                    <option>USB Camera 1</option>
+                                                    <option>USB Camera 2</option>
+                                                    <option>Virtual Camera</option>
+                                                </select>
+                                            </div>
+
+                                            <div class="field">
+                                                <label class="label" for="cameraRotation">Rotazione camera</label>
+                                                <select id="cameraRotation" class="select">
+                                                    <option>0°</option>
+                                                    <option>90°</option>
+                                                    <option>180°</option>
+                                                    <option>270°</option>
+                                                </select>
+                                            </div>
+
+                                            <div class="field">
+                                                <label class="label" for="cameraBackend">Modalità scatto</label>
+                                                <select id="cameraBackend" class="select">
+                                                    <option value="webcam">Webcam</option>
+                                                    <option value="canon">Canon (pro)</option>
+                                                </select>
+                                            </div>
+
+                                            <div class="field">
+                                                <label class="label" for="canonBridgeUrl">Canon bridge (URL)</label>
+                                                <input id="canonBridgeUrl" class="input" type="text" value="http://127.0.0.1:17555" placeholder="http://127.0.0.1:17555">
+                                            </div>
+
+                                            <div id="canonStatus" class="hint">Canon: non rilevata</div>
+
+                                            <div class="sliderGroup" aria-label="Impostazioni fotocamera">
+                                                <div class="sliderRow">
+                                                    <div class="sliderTop">
+                                                        <div class="sliderLabel">Apertura</div>
+                                                        <div class="sliderValue">f/2.8</div>
+                                                    </div>
+                                                    <input class="range" type="range" min="10" max="160" value="28" data-key="aperture">
+                                                </div>
+
+                                                <div class="sliderRow">
+                                                    <div class="sliderTop">
+                                                        <div class="sliderLabel">ISO</div>
+                                                        <div class="sliderValue">400</div>
+                                                    </div>
+                                                    <input class="range" type="range" min="100" max="3200" step="100" value="400" data-key="iso">
+                                                </div>
+
+                                                <div class="sliderRow">
+                                                    <div class="sliderTop">
+                                                        <div class="sliderLabel">Bilanc. bianco</div>
+                                                        <div class="sliderValue">Auto</div>
+                                                    </div>
+                                                    <input class="range" type="range" min="0" max="4" step="1" value="0" data-key="wb">
+                                                </div>
+
+                                                <div class="sliderRow">
+                                                    <div class="sliderTop">
+                                                        <div class="sliderLabel">Temp. colore</div>
+                                                        <div class="sliderValue">5200K</div>
+                                                    </div>
+                                                    <input class="range" type="range" min="2500" max="9000" step="100" value="5200" data-key="tempK">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="adminCameraRight">
+                                        <div class="previewWrap">
+                                            <div class="monitor monitorSmall" aria-label="Preview camera">
+                                                <div class="monitorInner">
+                                                    <img class="monitorMedia photoView" alt="" data-camera-preview style="display:none">
+                                                    <div class="placeholder">Preview scatto</div>
+                                                </div>
+                                            </div>
+                                            <button class="btn btnPrimary btnSm" type="button" data-action="camera-test-shot">Scatta</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                        <section class="adminPanel" data-admin-panel="stampa" aria-label="Impostazioni stampa">
+                            <div class="adminPrint">
+                                <div class="adminHeader">
+                                    <div class="adminTitle">Stampa</div>
+                                    <div class="adminSub">Stampante, limiti e stato consumabili</div>
+                                </div>
+
+                                <div class="adminPrintBody">
+                                    <div class="adminPrintLeft">
+                                        <div class="adminForm">
+                                            <div class="field">
+                                                <label class="label" for="printerSelect">Seleziona stampante</label>
+                                                <select id="printerSelect" class="select">
+                                                    <option>Seleziona stampante</option>
+                                                    <option>DS620</option>
+                                                    <option>DNP QW410</option>
+                                                    <option>Windows Printer</option>
+                                                </select>
+                                            </div>
+
+                                            <div class="field">
+                                                <label class="label" for="paperFormat">Formato carta</label>
+                                                <select id="paperFormat" class="select">
+                                                    <option>10×15</option>
+                                                    <option>15×20</option>
+                                                    <option>5×15 (strip)</option>
+                                                </select>
+                                            </div>
+
+                                            <div class="row2">
+                                                <div class="field">
+                                                    <label class="label" for="limitSession">Limite copie per sessione</label>
+                                                    <input id="limitSession" class="input" type="number" min="0" step="1" value="0">
+                                                </div>
+                                                <div class="field">
+                                                    <label class="label" for="limitEvent">Limite copie per evento</label>
+                                                    <input id="limitEvent" class="input" type="number" min="0" step="1" value="0">
+                                                </div>
+                                            </div>
+
+                                            <div class="field">
+                                                <label class="label" for="paperAutonomy">Autonomia carta (stima)</label>
+                                                <input id="paperAutonomy" class="input" type="number" min="0" step="1" value="0">
+                                            </div>
+
+                                            <div class="row2">
+                                                <div class="field">
+                                                    <label class="label">Sistema online</label>
+                                                    <label class="check"><input id="printOnlineEnabled" type="checkbox" checked> Abilitato</label>
+                                                </div>
+                                                <div class="field fieldCompact">
+                                                    <label class="label" aria-hidden="true">&nbsp;</label>
+                                                    <button class="btn btnGhost btnSm" type="button" data-action="print-test">Test stampa</button>
+                                                </div>
+                                            </div>
+
+                                            <div id="printStatusHint" class="hint">Stampa: pronta</div>
+
+                                            <button class="btn btnAccent btnLg" type="button" data-action="save-config">Salva tutto</button>
+                                        </div>
+                                    </div>
+
+                                    <div class="adminPrintRight">
+                                        <div class="printStatus">
+                                            <div class="printStatusTitle">Stato</div>
+                                            <div class="printStatusRow">
+                                                <div class="printStatusLabel">Carta</div>
+                                                <div class="printStatusBar"><div class="printStatusFill" style="width: 70%"></div></div>
+                                                <div class="printStatusValue">70%</div>
+                                            </div>
+                                            <div class="printStatusRow">
+                                                <div class="printStatusLabel">Copie</div>
+                                                <div class="printStatusBar"><div class="printStatusFill" style="width: 45%"></div></div>
+                                                <div class="printStatusValue">45%</div>
+                                            </div>
+                                        </div>
+
+                                        <div class="monitor monitorSmall" aria-label="Anteprima stampa">
+                                            <div class="monitorInner">
+                                                <img class="monitorMedia photoView" alt="" data-print-preview style="display:none">
+                                                <div class="placeholder">Anteprima stampa</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                        <section class="adminPanel" data-admin-panel="cartelle" aria-label="Impostazioni cartelle">
+                            <div class="adminFolders">
+                                <div class="adminHeader">
+                                    <div class="adminTitle">Cartelle</div>
+                                    <div class="adminSub">Percorsi locali e sincronizzazione</div>
+                                </div>
+
+                                <div class="adminFoldersBody">
+                                    <div class="adminFoldersLeft">
+                                        <div class="adminForm">
+                                            <div class="field">
+                                                <label class="label" for="folderEvents">Cartella archivio sessioni</label>
+                                                <input id="folderEvents" class="input" type="text" placeholder="C:\\PhotoBooth\\Sessions">
+                                                <div class="hint">Struttura: Evento \\ Data \\ Sessione \\ originali / finali</div>
+                                            </div>
+                                            <div class="field">
+                                                <label class="label" for="folderUser">Cartella utente</label>
+                                                <input id="folderUser" class="input" type="text" placeholder="C:\\PhotoBooth\\UserExport">
+                                                <div class="hint">Struttura: Evento \\ originali (puliti) e Evento \\ altre (tutte le elaborazioni)</div>
+                                            </div>
+                                            <div class="field">
+                                                <label class="label" for="folderCloud">Cartella cloud sync</label>
+                                                <input id="folderCloud" class="input" type="text" placeholder="C:\\Percorso\\CloudSync">
+                                            </div>
+                                            <div class="field">
+                                                <label class="label" for="folderPrint">Cartella stampa</label>
+                                                <input id="folderPrint" class="input" type="text" placeholder="C:\\PhotoBooth\\PrintQueue">
+                                                <div class="hint">Coda: tutto ciò che l’utente seleziona “Stampa” in Finale</div>
+                                            </div>
+
+                                            <button class="btn btnAccent btnLg" type="button" data-action="save-config">Salva tutto</button>
+                                        </div>
+                                    </div>
+
+                                    <div class="adminFoldersRight">
+                                        <div class="folderStatus">
+                                            <div class="folderStatusTitle">Monitoraggio cloud</div>
+                                            <div class="folderStatusRow">
+                                                <div class="folderStatusLabel">In coda</div>
+                                                <div class="folderStatusValue">12 file</div>
+                                            </div>
+                                            <div class="folderStatusRow">
+                                                <div class="folderStatusLabel">Ultimo sync</div>
+                                                <div class="folderStatusValue">2 min fa</div>
+                                            </div>
+                                            <div class="folderStatusRow">
+                                                <div class="folderStatusLabel">Errori</div>
+                                                <div class="folderStatusValue">0</div>
+                                            </div>
+                                        </div>
+
+                                        <div class="diskStatus">
+                                            <div class="folderStatusTitle">Spazio su disco</div>
+                                            <div class="diskRow">
+                                                <div class="diskLabel">Disco</div>
+                                                <div class="diskBar"><div class="diskFill" style="width: 62%"></div></div>
+                                                <div class="diskValue">62%</div>
+                                            </div>
+                                            <div class="diskMeta">Disponibile: 148 GB</div>
+                                        </div>
+
+                                        <div class="folderStatus">
+                                            <div class="folderStatusTitle">Percorsi tecnici</div>
+                                            <div class="adminForm">
+                                                <div class="field">
+                                                    <label class="label" for="folderTemp">Cartella temp</label>
+                                                    <input id="folderTemp" class="input" type="text" placeholder="C:\\PhotoBooth\\Temp">
+                                                </div>
+                                                <div class="field">
+                                                    <label class="label" for="folderLogs">Cartella log</label>
+                                                    <input id="folderLogs" class="input" type="text" placeholder="C:\\PhotoBooth\\Logs">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                        <section class="adminPanel" data-admin-panel="ia" aria-label="Impostazioni IA">
+                            <div class="adminAI">
+                                <div class="adminHeader">
+                                    <div class="adminTitle">IA</div>
+                                    <div class="adminSub">Motore, intensità e libreria modelli</div>
+                                </div>
+
+                                <div class="adminAIBody">
+                                    <div class="adminAILeft">
+                                        <div class="adminForm">
+                                            <div class="field">
+                                                <label class="label" for="aiEngine">Selezione motore</label>
+                                                <select id="aiEngine" class="select">
+                                                    <option>Seleziona motore</option>
+                                                    <option>OpenAI</option>
+                                                    <option>Stability</option>
+                                                    <option>Replicate</option>
+                                                    <option>Locale</option>
+                                                </select>
+                                            </div>
+
+                                            <div class="field">
+                                                <label class="label" for="aiApiKey">API key</label>
+                                                <input id="aiApiKey" class="input" type="password" value="" placeholder="Incolla qui la chiave">
+                                            </div>
+
+                                            <div class="field">
+                                                <label class="label" for="aiEndpoint">Endpoint / Base URL</label>
+                                                <input id="aiEndpoint" class="input" type="text" value="" placeholder="https://...">
+                                            </div>
+
+                                            <div class="row2">
+                                                <div class="field">
+                                                    <label class="label">Opzioni</label>
+                                                    <label class="check"><input id="aiEnabled" type="checkbox" checked> Abilita IA</label>
+                                                </div>
+                                                <div class="field">
+                                                    <label class="label" aria-hidden="true">&nbsp;</label>
+                                                    <label class="check"><input id="aiShowToUser" type="checkbox" checked> Mostra IA all’utente</label>
+                                                </div>
+                                            </div>
+
+                                            <div class="sliderRow">
+                                                <div class="sliderTop">
+                                                    <div class="sliderLabel">Effetto IA</div>
+                                                    <div class="sliderValue">50%</div>
+                                                </div>
+                                                <input class="range" type="range" min="0" max="100" step="1" value="50" data-key="aiStrength">
+                                            </div>
+
+                                            <button class="btn btnGhost btnSm" type="button">Test connessione</button>
+
+                                            <button class="btn btnAccent btnLg" type="button" data-action="save-config">Salva tutto</button>
+                                        </div>
+                                    </div>
+
+                                    <div class="adminAIRight">
+                                        <div class="modelLibrary">
+                                            <div class="modelHeader">
+                                                <div class="modelTitle">Libreria modelli</div>
+                                                <button class="btn btnGhost btnSm" type="button">Aggiorna lista</button>
+                                            </div>
+                                            <div class="modelGrid" aria-label="Modelli disponibili">
+                                                <button class="modelCard" type="button" aria-pressed="true">Cartoon</button>
+                                                <button class="modelCard" type="button" aria-pressed="false">Anime</button>
+                                                <button class="modelCard" type="button" aria-pressed="false">Sketch</button>
+                                                <button class="modelCard" type="button" aria-pressed="false">Vintage</button>
+                                                <button class="modelCard" type="button" aria-pressed="false">Cyberpunk</button>
+                                                <button class="modelCard" type="button" aria-pressed="false">Oil Paint</button>
+                                                <button class="modelCard" type="button" aria-pressed="false">B&N AI</button>
+                                                <button class="modelCard" type="button" aria-pressed="false">3D Render</button>
+                                            </div>
+                                            <div class="modelHint">Seleziona i modelli da mostrare all’utente.</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                        <section class="adminPanel" data-admin-panel="qrcode" aria-label="Impostazioni QR Code">
+                            <div class="adminQR">
+                                <div class="adminHeader">
+                                    <div class="adminTitle">QR Code</div>
+                                    <div class="adminSub">Link sessione, download e aggiornamento galleria</div>
+                                </div>
+
+                                <div class="adminQRBody">
+                                    <div class="adminQRLeft">
+                                        <div class="adminForm">
+                                            <div class="field">
+                                                <label class="label" for="qrProvider">Provider</label>
+                                                <select id="qrProvider" class="select">
+                                                    <option>Cloudinary</option>
+                                                    <option>Altro</option>
+                                                </select>
+                                            </div>
+
+                                            <div class="row2">
+                                                <div class="field">
+                                                    <label class="label" for="qrCloudName">Cloud name</label>
+                                                    <input id="qrCloudName" class="input" type="text" placeholder="es. mycloud">
+                                                </div>
+                                                <div class="field">
+                                                    <label class="label" for="qrUploadPreset">Upload preset</label>
+                                                    <input id="qrUploadPreset" class="input" type="text" placeholder="preset">
+                                                </div>
+                                            </div>
+
+                                            <div class="field">
+                                                <label class="label" for="qrLinkTemplate">Template link sessione</label>
+                                                <input id="qrLinkTemplate" class="input" type="text" placeholder="https://.../{eventId}/{sessionId}">
+                                            </div>
+
+                                            <div class="row2">
+                                                <div class="field">
+                                                    <label class="label">Opzioni download</label>
+                                                    <label class="check"><input id="qrDownloadSingle" type="checkbox" checked> Download singole</label>
+                                                </div>
+                                                <div class="field">
+                                                    <label class="label" aria-hidden="true">&nbsp;</label>
+                                                    <label class="check"><input id="qrDownloadZip" type="checkbox" checked> Download ZIP</label>
+                                                </div>
+                                            </div>
+
+                                            <div class="field">
+                                                <label class="label">Modalità</label>
+                                                <label class="check"><input id="qrFinalOnly" type="checkbox" checked> QR solo foto finale (consigliato)</label>
+                                            </div>
+
+                                            <div class="sliderRow">
+                                                <div class="sliderTop">
+                                                    <div class="sliderLabel">Validità QR (ore)</div>
+                                                    <div class="sliderValue">12h</div>
+                                                </div>
+                                                <input id="qrTtlHours" class="range" type="range" min="1" max="168" step="1" value="12" data-key="qrTtlHours">
+                                            </div>
+
+                                            <div class="sliderRow">
+                                                <div class="sliderTop">
+                                                    <div class="sliderLabel">Auto-refresh galleria (sec)</div>
+                                                    <div class="sliderValue">30s</div>
+                                                </div>
+                                                <input id="qrRefreshSec" class="range" type="range" min="0" max="120" step="5" value="30" data-key="qrRefreshSec">
+                                            </div>
+
+                                            <div class="sliderRow">
+                                                <div class="sliderTop">
+                                                    <div class="sliderLabel">Dimensione QR (px)</div>
+                                                    <div class="sliderValue">320px</div>
+                                                </div>
+                                                <input id="qrSizePx" class="range" type="range" min="160" max="640" step="10" value="320" data-key="qrSizePx">
+                                            </div>
+
+                                            <div class="adminDivider"></div>
+
+                                            <div class="field">
+                                                <label class="label" for="qrWebsite">Sito web</label>
+                                                <input id="qrWebsite" class="input" type="text" placeholder="https://tuosito.it">
+                                            </div>
+
+                                            <div class="row2">
+                                                <div class="field">
+                                                    <label class="label" for="qrInstagram">Instagram</label>
+                                                    <input id="qrInstagram" class="input" type="text" placeholder="https://instagram.com/...">
+                                                </div>
+                                                <div class="field">
+                                                    <label class="label" for="qrTikTok">TikTok</label>
+                                                    <input id="qrTikTok" class="input" type="text" placeholder="https://tiktok.com/@...">
+                                                </div>
+                                            </div>
+
+                                            <div class="row2">
+                                                <div class="field">
+                                                    <label class="label" for="qrFacebook">Facebook</label>
+                                                    <input id="qrFacebook" class="input" type="text" placeholder="https://facebook.com/...">
+                                                </div>
+                                                <div class="field">
+                                                    <label class="label">Mostra</label>
+                                                    <label class="check"><input id="qrShowLinks" type="checkbox" checked> Link nella pagina sessione</label>
+                                                </div>
+                                            </div>
+
+                                            <button class="btn btnAccent btnLg" type="button" data-action="save-config">Salva tutto</button>
+                                        </div>
+                                    </div>
+
+                                    <div class="adminQRRight">
+                                        <div class="qrPreviewCard">
+                                            <div class="qrPreviewHeader">
+                                                <div class="qrPreviewTitle">Anteprima QR</div>
+                                                <button class="btn btnGhost btnSm" type="button">Rigenera</button>
+                                            </div>
+                                            <div class="qrCanvas" aria-label="QRCode di esempio">
+                                                <div class="qrPlaceholder">QR</div>
+                                            </div>
+                                            <div class="qrLinkBox">
+                                                <div class="qrLinkLabel">Link sessione</div>
+                                                <div class="qrLinkValue">https://…/event123/session456</div>
+                                            </div>
+                                            <div class="qrMeta">
+                                                <div class="qrLinkLabel">Link extra</div>
+                                                <div class="qrChips">
+                                                    <div class="qrChip">Sito</div>
+                                                    <div class="qrChip">IG</div>
+                                                    <div class="qrChip">TT</div>
+                                                    <div class="qrChip">FB</div>
+                                                </div>
+                                            </div>
+                                            <div class="qrActions">
+                                                <button class="btn btnGhost btnSm" type="button">Copia link</button>
+                                                <button class="btn btnPrimary btnSm" type="button">Apri test</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                        <section class="adminPanel" data-admin-panel="stat" aria-label="Statistiche">
+                            <div class="adminStats">
+                                <div class="adminHeader">
+                                    <div class="adminTitle">Stat</div>
+                                    <div class="adminSub">Riepilogo evento e stato sistema</div>
+                                </div>
+
+                                <div class="adminStatsBody">
+                                    <div class="statsMain">
+                                        <div class="statCards">
+                                            <div class="statCard">
+                                                <div class="statValue">42</div>
+                                                <div class="statLabel">Sessioni</div>
+                                            </div>
+                                            <div class="statCard">
+                                                <div class="statValue">168</div>
+                                                <div class="statLabel">Foto scattate</div>
+                                            </div>
+                                            <div class="statCard">
+                                                <div class="statValue">28</div>
+                                                <div class="statLabel">Stampe</div>
+                                            </div>
+                                            <div class="statCard">
+                                                <div class="statValue">39</div>
+                                                <div class="statLabel">QR generati</div>
+                                            </div>
+                                            <div class="statCard">
+                                                <div class="statValue">12%</div>
+                                                <div class="statLabel">Con IA</div>
+                                            </div>
+                                            <div class="statCard">
+                                                <div class="statValue">0</div>
+                                                <div class="statLabel">Errori</div>
+                                            </div>
+                                        </div>
+
+                                        <div class="statCharts">
+                                            <div class="statChart">
+                                                <div class="statChartTitle">Sessioni per ora</div>
+                                                <div class="statChartCanvas">
+                                                    <div class="statChartPlaceholder">Grafico</div>
+                                                </div>
+                                            </div>
+                                            <div class="statChart">
+                                                <div class="statChartTitle">Stampe per ora</div>
+                                                <div class="statChartCanvas">
+                                                    <div class="statChartPlaceholder">Grafico</div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="statTableCard">
+                                            <div class="statTableHeader">
+                                                <div class="statTableTitle">Ultime sessioni</div>
+                                                <div class="statTableActions">
+                                                    <button class="btn btnGhost btnSm" type="button">Esporta CSV</button>
+                                                    <button class="btn btnGhost btnSm" type="button">Solo errori</button>
+                                                </div>
+                                            </div>
+                                            <div class="statTable">
+                                                <div class="statRow statRowHead">
+                                                    <div>Ora</div>
+                                                    <div>Foto</div>
+                                                    <div>IA</div>
+                                                    <div>QR</div>
+                                                    <div>Stampe</div>
+                                                    <div>Stato</div>
+                                                </div>
+                                                <div class="statRow">
+                                                    <div>19:42</div><div>4</div><div>No</div><div>Sì</div><div>1</div><div><span class="badge badgeOk">OK</span></div>
+                                                </div>
+                                                <div class="statRow">
+                                                    <div>19:38</div><div>4</div><div>Sì</div><div>Sì</div><div>0</div><div><span class="badge badgeOk">OK</span></div>
+                                                </div>
+                                                <div class="statRow">
+                                                    <div>19:31</div><div>3</div><div>No</div><div>No</div><div>1</div><div><span class="badge badgeWarn">Retry</span></div>
+                                                </div>
+                                                <div class="statRow">
+                                                    <div>19:22</div><div>4</div><div>No</div><div>Sì</div><div>1</div><div><span class="badge badgeOk">OK</span></div>
+                                                </div>
+                                                <div class="statRow">
+                                                    <div>19:10</div><div>4</div><div>No</div><div>Sì</div><div>1</div><div><span class="badge badgeErr">Errore</span></div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="statsSide">
+                                        <div class="statusCard">
+                                            <div class="statusTitle">Sistema</div>
+                                            <div class="statusGrid">
+                                                <div class="statusItem">
+                                                    <div class="statusLabel">Rete</div>
+                                                    <div class="statusValue"><span class="badge badgeOk">Online</span></div>
+                                                </div>
+                                                <div class="statusItem">
+                                                    <div class="statusLabel">Camera</div>
+                                                    <div class="statusValue"><span class="badge badgeOk">OK</span></div>
+                                                </div>
+                                                <div class="statusItem">
+                                                    <div class="statusLabel">Stampante</div>
+                                                    <div class="statusValue"><span class="badge badgeWarn">Carta bassa</span></div>
+                                                </div>
+                                                <div class="statusItem">
+                                                    <div class="statusLabel">Cloud</div>
+                                                    <div class="statusValue"><span class="badge badgeOk">Sync</span></div>
+                                                </div>
+                                                <div class="statusItem">
+                                                    <div class="statusLabel">Disco</div>
+                                                    <div class="statusValue">148 GB</div>
+                                                </div>
+                                                <div class="statusItem">
+                                                    <div class="statusLabel">Coda</div>
+                                                    <div class="statusValue">12 file</div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="statusCard">
+                                            <div class="statusTitle">Azioni</div>
+                                            <div class="statusActions">
+                                                <button class="btn btnGhost btnSm" type="button">Diagnostica</button>
+                                                <button class="btn btnDanger btnSm" type="button">Reset contatori</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+                </main>
+            </div>
+        </section>
+
+        <section id="preview" class="page">
+            <div class="layout">
+                <aside class="sidebar">
+                    <div class="sideHeader">
+                        <div class="sideTitle">Anteprima</div>
+                        <div class="sideSub">Controlla lo scatto</div>
+                    </div>
+                    <div class="sideActions">
+                        <button class="btn btnGhost btnLg" type="button" data-go="capture">Rifai</button>
+                        <button class="btn btnPrimary btnLg" type="button" data-go="effects">Conferma</button>
+                    </div>
+                </aside>
+                <main class="stage">
+                    <div class="monitor" aria-label="Anteprima foto 10×15">
+                        <div class="monitorInner">
+                            <img class="monitorMedia photoView" alt="" data-photo-view>
+                            <div class="placeholder">Foto scattata (10×15)</div>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </section>
+
+        <section id="effects" class="page">
+            <div class="layout">
+                <aside class="sidebar">
+                    <div class="sideHeader">
+                        <div class="sideTitle">Effetti classici</div>
+                        <div class="sideSub">Seleziona un effetto</div>
+                    </div>
+                    <div class="sideList">
+                        <button class="chip" type="button" data-filter="natural" aria-pressed="true">Naturale</button>
+                        <button class="chip" type="button" data-filter="bw" aria-pressed="false">B&amp;N</button>
+                        <button class="chip" type="button" data-filter="vintage" aria-pressed="false">Vintage</button>
+                        <button class="chip" type="button" data-filter="contrast" aria-pressed="false">Contrasto</button>
+                        <button class="chip" type="button" data-filter="soft" aria-pressed="false">Soft</button>
+                        <button class="chip" type="button" data-filter="warm" aria-pressed="false">Caldo</button>
+                        <button class="chip" type="button" data-filter="cool" aria-pressed="false">Freddo</button>
+                    </div>
+                    <div class="sideActions">
+                        <button class="btn btnPrimary btnLg" type="button" data-go="stickers">Conferma</button>
+                    </div>
+                </aside>
+                <main class="stage">
+                    <div class="monitor" aria-label="Foto con effetti 10×15">
+                        <div class="monitorInner">
+                            <img class="monitorMedia photoView" alt="" data-photo-view>
+                            <div class="placeholder">Foto + effetti</div>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </section>
+
+        <section id="stickers" class="page">
+            <div class="layout">
+                <aside class="sidebar">
+                    <div class="sideHeader">
+                        <div class="sideTitle">Adesivi</div>
+                        <div class="sideSub">Scorri e applica</div>
+                    </div>
+                    <div id="stickersList" class="sideScroller" aria-label="Adesivi disponibili"></div>
+                    <div class="sideActions">
+                        <button class="btn btnDanger btnLg" type="button" data-action="undo-sticker">Annulla</button>
+                        <button class="btn btnPrimary btnLg" type="button" data-go="ai">Conferma</button>
+                    </div>
+                </aside>
+                <main class="stage">
+                    <div class="monitor" aria-label="Foto con adesivi 10×15">
+                        <div class="monitorInner">
+                            <img class="monitorMedia photoView" alt="" data-photo-view>
+                            <div class="stickerLayer" data-sticker-layer aria-label="Adesivi sulla foto"></div>
+                            <div class="placeholder">Foto + adesivi</div>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </section>
+
+        <section id="ai" class="page">
+            <div class="layout">
+                <aside class="sidebar">
+                    <div class="sideHeader">
+                        <div class="sideTitle">IA</div>
+                        <div class="sideSub">Seleziona uno stile</div>
+                    </div>
+                    <div class="sideScroller">
+                        <button class="thumb" type="button">Stile 01</button>
+                        <button class="thumb" type="button">Stile 02</button>
+                        <button class="thumb" type="button">Stile 03</button>
+                        <button class="thumb" type="button">Stile 04</button>
+                        <button class="thumb" type="button">Stile 05</button>
+                        <button class="thumb" type="button">Stile 06</button>
+                        <button class="thumb" type="button">Stile 07</button>
+                        <button class="thumb" type="button">Stile 08</button>
+                        <button class="thumb" type="button">Stile 09</button>
+                        <button class="thumb" type="button">Stile 10</button>
+                    </div>
+                    <div class="sideActions">
+                        <button class="btn btnPrimary btnLg" type="button" data-go="final">Avanti</button>
+                    </div>
+                </aside>
+                <main class="stage">
+                    <div class="monitor" aria-label="Foto con IA 10×15">
+                        <div class="monitorInner">
+                            <img class="monitorMedia photoView" alt="" data-photo-view>
+                            <div class="placeholder">Foto + IA</div>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </section>
+
+        <section id="final" class="page">
+            <div class="layout">
+                <aside class="sidebar">
+                    <div class="sideHeader">
+                        <div class="sideTitle">Risultati</div>
+                        <div class="sideSub">Galleria 10×15</div>
+                    </div>
+                    <div class="sideGallery">
+                        <button class="printThumb" type="button">Pulito</button>
+                        <button class="printThumb" type="button">Effetti</button>
+                        <button class="printThumb" type="button">Adesivi</button>
+                        <button class="printThumb" type="button">IA</button>
+                    </div>
+                    <div class="sideActions">
+                        <button class="btn btnAccent btnLg" type="button" data-final-qr>QR Code</button>
+                        <button class="btn btnPrimary btnLg" type="button" data-action="final-print">Stampa</button>
+                        <button class="btn btnGhost btnLg" type="button" data-go="intro">Fine</button>
+                    </div>
+                </aside>
+                <main class="stage">
+                    <div class="monitor" aria-label="Foto finale 10×15">
+                        <div class="monitorInner">
+                            <img class="monitorMedia photoView" alt="" data-photo-view>
+                            <div class="stickerLayer" data-sticker-layer></div>
+                            <img class="monitorMedia qrFinalImg" alt="" data-qr-final style="display:none">
+                            <div class="placeholder">Foto finale pronta</div>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        </section>
     </div>
 
     <script>
-        const qs = new URLSearchParams(location.search);
-        const manifestInput = document.getElementById('manifestInput');
-        const statusEl = document.getElementById('status');
-        const grid = document.getElementById('grid');
-        const expiredCard = document.getElementById('expiredCard');
-        const refreshBtn = document.getElementById('refreshBtn');
-        const dlAllBtn = document.getElementById('dlAllBtn');
-
-        let lastManifest = null;
-
-        function setStatus(text) { statusEl.textContent = text; }
-
-        function getManifestUrl() {
-            let v = (qs.get('m') || manifestInput.value || '').trim();
-            if (!v) return '';
-            for (let i = 0; i < 2; i++) {
-                if (v.startsWith('http://') || v.startsWith('https://')) return v;
-                if (!/%[0-9A-Fa-f]{2}/.test(v)) return v;
-                try { v = decodeURIComponent(v); } catch { return v; }
+        const pages = Array.from(document.querySelectorAll('.page'));
+        const pbBoot = document.getElementById('pbBoot');
+        if (pbBoot && pbBoot instanceof HTMLElement) {
+            pbBoot.classList.add('ok');
+            if (new URLSearchParams(location.search).get('pbdebug') !== '1') {
+                setTimeout(() => pbBoot.remove(), 1200);
             }
-            return v;
+        }
+        const liveVideo = document.getElementById('liveVideo');
+        let liveStream = null;
+        let capturedPhotoUrl = '';
+        let currentSessionId = '';
+        let currentSessionCreatedAt = 0;
+        const sessionExtraItems = [];
+        let currentPageId = 'intro';
+        const DEFAULT_INTRO_VIDEO_SRC = 'assets/intro/intro.mp4';
+        const runtimeEvent = {
+            layoutJson: '',
+            introVideoSrc: '',
+            monitorOrientationIndex: 0,
+            pageIntroEnabled: true,
+            pageStickersEnabled: true,
+            pageEffectsEnabled: true,
+            pageAiEnabled: true,
+            pageQrEnabled: true,
+        };
+        let sessionPrintCount = 0;
+        const PRINT_EVENT_COUNT_KEY = 'pb_print_event_counts_v1';
+        const PB_DEBUG = new URLSearchParams(location.search).get('pbdebug') === '1';
+        let pbDebugEl = null;
+
+        function createSessionId() {
+            return `${Date.now()}_${Math.random().toString(16).slice(2)}`;
         }
 
-        function getSingleUrl() {
-            let v = (qs.get('u') || qs.get('url') || '').trim();
-            if (!v) return '';
-            for (let i = 0; i < 2; i++) {
-                if (v.startsWith('http://') || v.startsWith('https://')) return v;
-                if (!/%[0-9A-Fa-f]{2}/.test(v)) return v;
-                try { v = decodeURIComponent(v); } catch { return v; }
+        function ensureSessionId() {
+            if (!currentSessionId) {
+                currentSessionId = createSessionId();
+                currentSessionCreatedAt = Date.now();
             }
-            return v;
         }
 
-        function makeDownloadUrl(url) {
-            const u = String(url || '');
-            if (!u) return '';
-            if (u.includes('/image/upload/') && !u.includes('/image/upload/fl_attachment')) {
-                return u.replace('/image/upload/', '/image/upload/fl_attachment/');
-            }
-            return u;
+        function pbDebugEnsureEl() {
+            if (!PB_DEBUG) return null;
+            if (pbDebugEl) return pbDebugEl;
+            const el = document.createElement('div');
+            el.style.position = 'fixed';
+            el.style.left = '12px';
+            el.style.bottom = '12px';
+            el.style.zIndex = '99999';
+            el.style.maxWidth = 'min(92vw, 680px)';
+            el.style.padding = '10px 12px';
+            el.style.borderRadius = '12px';
+            el.style.border = '1px solid rgba(255,255,255,0.16)';
+            el.style.background = 'rgba(0,0,0,0.55)';
+            el.style.backdropFilter = 'blur(8px)';
+            el.style.color = 'rgba(255,255,255,0.92)';
+            el.style.fontFamily = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
+            el.style.fontSize = '12px';
+            el.style.lineHeight = '1.3';
+            el.style.pointerEvents = 'none';
+            document.body.appendChild(el);
+            pbDebugEl = el;
+            return el;
         }
 
-        function renderSingle(url) {
-            lastManifest = { items: [{ type: 'final', url, createdAt: Date.now() }] };
-            grid.innerHTML = '';
-            expiredCard.style.display = 'none';
-            setStatus('Foto pronta');
+        function pbDebugSet(text) {
+            if (!PB_DEBUG) return;
+            const el = pbDebugEnsureEl();
+            if (!el) return;
+            el.textContent = text;
+        }
 
-            const card = document.createElement('a');
-            card.className = 'item';
-            card.href = url;
-            card.target = '_blank';
-            card.rel = 'noopener noreferrer';
+        if (PB_DEBUG) {
+            pbDebugSet(`boot url=${location.href}`);
+            window.addEventListener('error', (e) => {
+                pbDebugSet(`error ${String(e?.message || '')} @${String(e?.filename || '')}:${String(e?.lineno || '')}:${String(e?.colno || '')}`);
+            });
+            window.addEventListener('unhandledrejection', (e) => {
+                pbDebugSet(`rejection ${String(e?.reason || '')}`);
+            });
+            document.addEventListener('pointerup', (e) => {
+                const t = e.target instanceof Element ? e.target : null;
+                const tag = t ? (t.closest('button')?.textContent || t.tagName) : 'none';
+                pbDebugSet(`pointerup type=${e.pointerType} page=${currentPageId} tag=${String(tag).trim().slice(0, 80)}`);
+            }, true);
+            document.addEventListener('click', (e) => {
+                const t = e.target instanceof Element ? e.target : null;
+                const tag = t ? (t.closest('button')?.textContent || t.tagName) : 'none';
+                pbDebugSet(`click trusted=${e.isTrusted} page=${currentPageId} tag=${String(tag).trim().slice(0, 80)}`);
+            }, true);
+        }
 
-            const img = document.createElement('img');
-            img.loading = 'eager';
-            img.alt = 'Foto';
+        function isEventPageEnabled(pageId) {
+            if (pageId === 'intro') return runtimeEvent.pageIntroEnabled !== false;
+            if (pageId === 'effects') return runtimeEvent.pageEffectsEnabled !== false;
+            if (pageId === 'stickers') return runtimeEvent.pageStickersEnabled !== false;
+            if (pageId === 'ai') return runtimeEvent.pageAiEnabled !== false;
+            return true;
+        }
+
+        function resolveGoTarget(requestedPageId) {
+            if (requestedPageId === 'admin') return 'admin';
+            const order = ['intro', 'capture', 'preview', 'effects', 'stickers', 'ai', 'final'];
+            const idx = order.indexOf(requestedPageId);
+            if (idx < 0) return requestedPageId;
+            for (let i = idx; i < order.length; i++) {
+                const id = order[i];
+                if (isEventPageEnabled(id)) return id;
+            }
+            return 'final';
+        }
+
+        function getFirstUserPage() {
+            return isEventPageEnabled('intro') ? 'intro' : 'capture';
+        }
+
+        function go(pageId) {
+            const targetPageId = resolveGoTarget(pageId);
+            const prevPageId = currentPageId;
+            for (const p of pages) p.classList.remove('active');
+            const next = document.getElementById(targetPageId);
+            if (!next) return;
+            next.classList.add('active');
+            currentPageId = targetPageId;
+            if (targetPageId === 'intro') resetSessionState();
+            handlePageChange(targetPageId, prevPageId);
+        }
+
+        function setMonitorPlaceholder(monitorEl, text) {
+            const placeholder = monitorEl.querySelector('.placeholder');
+            if (!placeholder) return;
+            placeholder.textContent = text;
+            placeholder.style.display = '';
+        }
+
+        function hideMonitorPlaceholder(monitorEl) {
+            const placeholder = monitorEl.querySelector('.placeholder');
+            if (!placeholder) return;
+            placeholder.style.display = 'none';
+        }
+
+        function setCapturedPhoto(url) {
+            capturedPhotoUrl = url;
+            const imgs = Array.from(document.querySelectorAll('[data-photo-view]'));
+            for (const img of imgs) {
+                if (!(img instanceof HTMLImageElement)) continue;
+                if (img.closest('#ai')) continue;
+                img.src = url;
+                img.style.display = 'block';
+                const inner = img.closest('.monitorInner');
+                if (inner) hideMonitorPlaceholder(inner);
+            }
+            renderStickerLayers();
+        }
+
+        function setAiOriginalPhoto(url) {
+            const img = document.querySelector('#ai [data-photo-view]');
+            if (!img || !(img instanceof HTMLImageElement)) return;
             img.src = url;
+            img.style.display = 'block';
+            const inner = img.closest('.monitorInner');
+            if (inner) hideMonitorPlaceholder(inner);
+        }
 
-            const meta = document.createElement('div');
-            meta.className = 'meta';
+        let selectedClassicFilter = 'natural';
 
-            const tag = document.createElement('div');
-            tag.className = 'tag';
-            tag.textContent = 'Foto';
+        function classicFilterCss(key) {
+            if (key === 'bw') return 'grayscale(1) contrast(1.05)';
+            if (key === 'vintage') return 'sepia(0.45) contrast(1.05) saturate(0.9)';
+            if (key === 'contrast') return 'contrast(1.25) saturate(1.1)';
+            if (key === 'soft') return 'brightness(1.06) contrast(0.94) saturate(1.05)';
+            if (key === 'warm') return 'sepia(0.22) saturate(1.25) hue-rotate(-10deg) brightness(1.03)';
+            if (key === 'cool') return 'saturate(1.15) hue-rotate(15deg) contrast(1.05)';
+            return 'none';
+        }
 
-            const dl = document.createElement('a');
-            dl.className = 'link';
-            dl.href = makeDownloadUrl(url);
-            dl.target = '_blank';
-            dl.rel = 'noopener noreferrer';
-            dl.textContent = 'Scarica';
+        function applyClassicFilter() {
+            const imgs = Array.from(document.querySelectorAll('[data-photo-view]'));
+            for (const img of imgs) {
+                if (!(img instanceof HTMLImageElement)) continue;
+                img.style.filter = 'none';
+            }
+        }
 
-            meta.appendChild(tag);
-            meta.appendChild(dl);
-            card.appendChild(img);
-            card.appendChild(meta);
-            grid.appendChild(card);
+        function setClassicFilter(key) {
+            selectedClassicFilter = key;
+            const chips = Array.from(document.querySelectorAll('#effects [data-filter]'));
+            for (const chip of chips) {
+                if (!(chip instanceof HTMLButtonElement)) continue;
+                const isActive = chip.getAttribute('data-filter') === key;
+                chip.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+            }
+            applyClassicFilter();
+            if (capturedShots.length) {
+                composeEventLayoutImage().then((composite) => {
+                    if (composite) setCapturedPhoto(composite);
+                });
+            }
+        }
 
-            refreshBtn.disabled = true;
-            dlAllBtn.textContent = 'Scarica';
-            dlAllBtn.onclick = () => {
-                const a = document.createElement('a');
-                a.href = makeDownloadUrl(url);
-                a.target = '_blank';
-                a.rel = 'noopener noreferrer';
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
+        function syncRuntimeEventFromAdmin() {
+            const layoutInput = document.getElementById('eventLayoutJson');
+            if (layoutInput && layoutInput instanceof HTMLInputElement) {
+                runtimeEvent.layoutJson = layoutInput.value.trim();
+            }
+            const introInput = document.getElementById('eventIntroVideoSrc');
+            if (introInput && introInput instanceof HTMLInputElement) {
+                runtimeEvent.introVideoSrc = introInput.value.trim();
+            }
+            const o = document.getElementById('monitorOrientation');
+            if (o && o instanceof HTMLSelectElement) {
+                runtimeEvent.monitorOrientationIndex = o.selectedIndex;
+            }
+            const introEnabled = document.getElementById('pageIntroEnabled');
+            if (introEnabled && introEnabled instanceof HTMLInputElement) runtimeEvent.pageIntroEnabled = introEnabled.checked;
+            const stickersEnabled = document.getElementById('pageStickersEnabled');
+            if (stickersEnabled && stickersEnabled instanceof HTMLInputElement) runtimeEvent.pageStickersEnabled = stickersEnabled.checked;
+            const effectsEnabled = document.getElementById('pageEffectsEnabled');
+            if (effectsEnabled && effectsEnabled instanceof HTMLInputElement) runtimeEvent.pageEffectsEnabled = effectsEnabled.checked;
+            const aiEnabled = document.getElementById('pageAiEnabled');
+            if (aiEnabled && aiEnabled instanceof HTMLInputElement) runtimeEvent.pageAiEnabled = aiEnabled.checked;
+            const qrEnabled = document.getElementById('pageQrEnabled');
+            if (qrEnabled && qrEnabled instanceof HTMLInputElement) runtimeEvent.pageQrEnabled = qrEnabled.checked;
+        }
+
+        function applyEventIntroVideoFromRuntime() {
+            const video = document.getElementById('introVideo');
+            if (!video || !(video instanceof HTMLVideoElement)) return;
+            video.src = runtimeEvent.introVideoSrc || DEFAULT_INTRO_VIDEO_SRC;
+            video.load();
+            video.play().catch(() => { });
+        }
+
+        function applyRuntimeEventToUi() {
+            const vertical = runtimeEvent.monitorOrientationIndex === 1;
+            const monitors = Array.from(document.querySelectorAll('#capture .monitor, #preview .monitor, #effects .monitor, #stickers .monitor, #ai .monitor, #final .monitor'));
+            for (const m of monitors) {
+                if (!(m instanceof HTMLElement)) continue;
+                m.classList.toggle('vertical', vertical);
+            }
+
+            const qrBtn = document.querySelector('#final [data-final-qr]');
+            if (qrBtn && qrBtn instanceof HTMLElement) {
+                qrBtn.style.display = runtimeEvent.pageQrEnabled === false ? 'none' : '';
+            }
+        }
+
+        function resetSessionState() {
+            currentSessionId = createSessionId();
+            currentSessionCreatedAt = Date.now();
+            sessionPrintCount = 0;
+            capturedPhotoUrl = '';
+            capturedShots.length = 0;
+            sessionExtraItems.length = 0;
+            isFinalQrOpen = false;
+            setFinalQrVisible(false, '');
+            const qrImg = document.querySelector('#final [data-qr-final]');
+            if (qrImg && qrImg instanceof HTMLImageElement) qrImg.removeAttribute('src');
+            const imgs = Array.from(document.querySelectorAll('[data-photo-view]'));
+            for (const img of imgs) {
+                if (!(img instanceof HTMLImageElement)) continue;
+                img.removeAttribute('src');
+                img.style.display = 'none';
+                const inner = img.closest('.monitorInner');
+                if (inner) {
+                    const placeholder = inner.querySelector('.placeholder');
+                    if (placeholder && placeholder instanceof HTMLElement) placeholder.style.display = '';
+                }
+            }
+
+            selectedClassicFilter = 'natural';
+            const chips = Array.from(document.querySelectorAll('#effects [data-filter]'));
+            for (const chip of chips) {
+                if (!(chip instanceof HTMLButtonElement)) continue;
+                const isActive = chip.getAttribute('data-filter') === 'natural';
+                chip.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+            }
+            applyClassicFilter();
+
+            stickers.length = 0;
+            activeStickerId = '';
+            renderStickerLayers();
+
+            const stickerButtons = Array.from(document.querySelectorAll('#stickers [data-sticker-src]'));
+            for (const b of stickerButtons) {
+                if (!(b instanceof HTMLButtonElement)) continue;
+                b.setAttribute('aria-pressed', 'false');
+            }
+
+            renderCaptureLayoutOverlay();
+            updateShotProgress();
+            applyCaptureGuideFromRuntime();
+        }
+
+        function resetEventSection() {
+            const panel = document.querySelector('#admin .adminPanel[data-admin-panel="evento"]');
+            if (!panel) return;
+            const els = Array.from(panel.querySelectorAll('input[id], select[id], textarea[id]'));
+            for (const el of els) {
+                if (el instanceof HTMLInputElement && el.type === 'checkbox') {
+                    el.checked = el.defaultChecked;
+                } else if (el instanceof HTMLSelectElement) {
+                    el.selectedIndex = 0;
+                } else if (el instanceof HTMLInputElement) {
+                    el.value = el.defaultValue;
+                } else if (el instanceof HTMLTextAreaElement) {
+                    el.value = el.defaultValue;
+                }
+            }
+
+            const recall = document.getElementById('eventRecall');
+            if (recall && recall instanceof HTMLSelectElement) recall.value = '';
+
+            eventLayers.length = 0;
+            activeEventLayerId = '';
+            syncEventLayoutToInput();
+            renderEventEditor();
+            updateEventLayerButtons();
+
+            const editorLayer = getEventLayerEl();
+            const monitorInner = editorLayer ? editorLayer.closest('.monitorInner') : null;
+            if (monitorInner) {
+                const placeholder = monitorInner.querySelector('.placeholder');
+                if (placeholder && placeholder instanceof HTMLElement) placeholder.style.display = '';
+            }
+        }
+
+        const eventLayers = [];
+        let activeEventLayerId = '';
+        let eventDrag = null;
+        let eventShotPlaceholderUrl = '';
+
+        function isAdminEventEditorActive() {
+            const admin = document.getElementById('admin');
+            if (!admin || !admin.classList.contains('active')) return false;
+            const panel = document.querySelector('#admin .adminPanel[data-admin-panel="evento"]');
+            return Boolean(panel && panel.classList.contains('active'));
+        }
+
+        function getEventLayerEl() {
+            return document.querySelector('#admin .adminPanel[data-admin-panel="evento"].active [data-event-editor-layer]');
+        }
+
+        function getEventLayoutInput() {
+            const el = document.getElementById('eventLayoutJson');
+            return el instanceof HTMLInputElement ? el : null;
+        }
+
+        function syncEventLayoutToInput() {
+            const input = getEventLayoutInput();
+            if (!input) return;
+            input.value = JSON.stringify({ layers: eventLayers });
+        }
+
+        function loadEventLayoutFromInput() {
+            eventLayers.length = 0;
+            activeEventLayerId = '';
+            const input = getEventLayoutInput();
+            if (!input) return;
+            const raw = input.value.trim();
+            if (!raw) return;
+            try {
+                const parsed = JSON.parse(raw);
+                const layers = Array.isArray(parsed?.layers) ? parsed.layers : [];
+                for (const l of layers) {
+                    if (!l || typeof l !== 'object') continue;
+                    if (typeof l.id !== 'string' || typeof l.src !== 'string') continue;
+                    const type = l.type === 'frame' ? 'frame' : (l.type === 'guide' ? 'guide' : 'shot');
+                    const x = Number(l.x);
+                    const y = Number(l.y);
+                    const w = Number(l.w);
+                    const h = Number(l.h);
+                    const rot = Number(l.rot);
+                    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(w) || !Number.isFinite(h) || !Number.isFinite(rot)) continue;
+                    eventLayers.push({ id: l.id, type, src: l.src, x, y, w, h, rot });
+                }
+                activeEventLayerId = eventLayers.length ? eventLayers[eventLayers.length - 1].id : '';
+            } catch { }
+        }
+
+        function createEventLayerId() {
+            return `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+        }
+
+        function getEventLayerById(id) {
+            return eventLayers.find((l) => l.id === id) ?? null;
+        }
+
+        function ensureEventShotPlaceholder() {
+            if (eventShotPlaceholderUrl) return eventShotPlaceholderUrl;
+            const canvas = document.createElement('canvas');
+            canvas.width = 1200;
+            canvas.height = 800;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return '';
+            const g = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+            g.addColorStop(0, '#1f2937');
+            g.addColorStop(1, '#0b0f16');
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = 'rgba(255,255,255,0.08)';
+            ctx.fillRect(60, 60, canvas.width - 120, canvas.height - 120);
+            eventShotPlaceholderUrl = canvas.toDataURL('image/png');
+            return eventShotPlaceholderUrl;
+        }
+
+        function renderEventEditor() {
+            const layerEl = getEventLayerEl();
+            if (!layerEl || !(layerEl instanceof HTMLElement)) return;
+
+            if (!isAdminEventEditorActive()) {
+                layerEl.innerHTML = '';
+                return;
+            }
+
+            const monitorInner = layerEl.closest('.monitorInner');
+            if (!monitorInner) return;
+
+            layerEl.innerHTML = '';
+
+            for (const l of eventLayers) {
+                const item = document.createElement('div');
+                const kind = l.type === 'frame' ? 'eventLayerFrame' : (l.type === 'guide' ? 'eventLayerGuide' : 'eventLayerPhoto');
+                item.className = `eventLayerItem ${kind}`;
+                if (l.id === activeEventLayerId) item.classList.add('active');
+                item.dataset.eventLayerId = l.id;
+                item.style.left = `${l.x * 100}%`;
+                item.style.top = `${l.y * 100}%`;
+                item.style.width = `${l.w * 100}%`;
+                item.style.height = `${l.h * 100}%`;
+                item.style.transform = `translate(-50%, -50%) rotate(${l.rot}deg)`;
+
+                if (l.type === 'guide') {
+                    const guide = document.createElement('div');
+                    guide.className = 'eventGuidePreview';
+                    item.appendChild(guide);
+                } else if (l.type === 'shot') {
+                    const shot = document.createElement('div');
+                    shot.className = 'eventShotPreview';
+                    item.appendChild(shot);
+                } else {
+                    const img = document.createElement('img');
+                    img.className = 'eventLayerImg';
+                    img.alt = '';
+                    img.draggable = false;
+                    img.src = l.src;
+                    item.appendChild(img);
+                }
+
+                const rotate = document.createElement('div');
+                rotate.className = 'eventHandle eventRotate';
+                rotate.dataset.handle = 'rotate';
+                item.appendChild(rotate);
+
+                const resize = document.createElement('div');
+                resize.className = 'eventHandle eventResize';
+                resize.dataset.handle = 'resize';
+                item.appendChild(resize);
+
+                layerEl.appendChild(item);
+            }
+
+            if (eventLayers.length) hideMonitorPlaceholder(monitorInner);
+            updateEventLayerButtons();
+        }
+
+        function updateEventEditorDom() {
+            const items = Array.from(document.querySelectorAll('#admin [data-event-editor-layer] .eventLayerItem'));
+            for (const item of items) {
+                if (!(item instanceof HTMLElement)) continue;
+                const id = item.dataset.eventLayerId ?? '';
+                const l = getEventLayerById(id);
+                if (!l) continue;
+                item.style.left = `${l.x * 100}%`;
+                item.style.top = `${l.y * 100}%`;
+                item.style.width = `${l.w * 100}%`;
+                item.style.height = `${l.h * 100}%`;
+                item.style.transform = `translate(-50%, -50%) rotate(${l.rot}deg)`;
+                item.classList.toggle('active', id === activeEventLayerId);
+            }
+            syncEventLayoutToInput();
+        }
+
+        function setActiveEventLayer(id) {
+            const idx = eventLayers.findIndex((l) => l.id === id);
+            if (idx >= 0) {
+                const [layer] = eventLayers.splice(idx, 1);
+                eventLayers.push(layer);
+                activeEventLayerId = layer.id;
+            } else {
+                activeEventLayerId = id;
+            }
+            updateEventEditorDom();
+            updateEventLayerButtons();
+        }
+
+        function updateEventLayerButtons() {
+            const buttons = Array.from(document.querySelectorAll('#admin .adminPanel[data-admin-panel="evento"] .layerItem[data-action]'));
+            const active = getEventLayerById(activeEventLayerId);
+            for (const b of buttons) {
+                if (!(b instanceof HTMLButtonElement)) continue;
+                const action = b.getAttribute('data-action') ?? '';
+                const isShots = action === 'event-select-shots';
+                const isGuide = action === 'event-select-guide';
+                const isFrame = action === 'event-select-frame';
+                const pressed =
+                    (isShots && active?.type === 'shot') ||
+                    (isGuide && active?.type === 'guide') ||
+                    (isFrame && active?.type === 'frame');
+                b.setAttribute('aria-pressed', pressed ? 'true' : 'false');
+            }
+        }
+
+        function selectTopEventLayer(type) {
+            for (let i = eventLayers.length - 1; i >= 0; i--) {
+                if (eventLayers[i]?.type === type) {
+                    setActiveEventLayer(eventLayers[i].id);
+                    renderEventEditor();
+                    return;
+                }
+            }
+        }
+
+        function deleteActiveEventLayer() {
+            if (!activeEventLayerId) return;
+            const idx = eventLayers.findIndex((l) => l.id === activeEventLayerId);
+            if (idx < 0) return;
+            eventLayers.splice(idx, 1);
+            activeEventLayerId = eventLayers.length ? eventLayers[eventLayers.length - 1].id : '';
+            syncEventLayoutToInput();
+            renderEventEditor();
+            updateEventLayerButtons();
+        }
+
+        function addEventShotLayer() {
+            const layer = {
+                id: createEventLayerId(),
+                type: 'shot',
+                src: '',
+                x: 0.5,
+                y: 0.52,
+                w: 0.72,
+                h: 0.72,
+                rot: 0,
+            };
+            eventLayers.push(layer);
+            activeEventLayerId = layer.id;
+            syncEventLayoutToInput();
+            renderEventEditor();
+            updateEventLayerButtons();
+        }
+
+        function setEventGuideLayer() {
+            const existing = eventLayers.find((l) => l.type === 'guide') ?? null;
+            if (existing) {
+                setActiveEventLayer(existing.id);
+                return;
+            }
+            const layer = {
+                id: createEventLayerId(),
+                type: 'guide',
+                src: '',
+                x: 0.5,
+                y: 0.52,
+                w: 0.72,
+                h: 0.72,
+                rot: 0,
+            };
+            eventLayers.push(layer);
+            activeEventLayerId = layer.id;
+            syncEventLayoutToInput();
+            renderEventEditor();
+            updateEventLayerButtons();
+        }
+
+        function setEventFrameLayer(src) {
+            const existing = eventLayers.find((l) => l.type === 'frame') ?? null;
+            if (existing) {
+                existing.src = src;
+                setActiveEventLayer(existing.id);
+            } else {
+                const layer = {
+                    id: createEventLayerId(),
+                    type: 'frame',
+                    src,
+                    x: 0.5,
+                    y: 0.5,
+                    w: 1,
+                    h: 1,
+                    rot: 0,
+                };
+                eventLayers.push(layer);
+                activeEventLayerId = layer.id;
+            }
+            syncEventLayoutToInput();
+            renderEventEditor();
+            updateEventLayerButtons();
+        }
+
+        const STICKER_FILES = [
+            '01glasses.png',
+            '01occhiali.png',
+            '01occhiali1.png',
+            '01occhiali2.png',
+            '01occhiali4.png',
+            '01occhiali5.png',
+            '01occhiali7.png',
+            '02beanie.png',
+            '02chefhat.png',
+            '02christmas.png',
+            '02hat.png',
+            '02pamelahat.png',
+            '02tophat.png',
+            '03baffi.png',
+            '03baffi2.png',
+            '03baffi3.png',
+            '03baffi4.png',
+            '03baffi5.png',
+            '03baffi6.png',
+            '05angry.png',
+            '05cool (1).png',
+            '05demon.png',
+            '05emoji.png',
+            '05happy-face.png',
+            '05laughwink.png',
+            '05shock.png',
+            '05shocked.png',
+            '05smile.png',
+            '05sunglass.png',
+            '05surprised.png',
+            '05wow.png',
+            '06man.png',
+            '06man1.png',
+            '06man2.png',
+            '06man3.png',
+            '06woman.png',
+            '06woman1.png',
+            'aah.png',
+            'babbo.png',
+            'baffi.png',
+            'balloons.png',
+            'birthdaycake.png',
+            'burger.png',
+            'cassettetape.png',
+            'christmastree.png',
+            'cool.png',
+            'feminism.png',
+            'feminism1.png',
+            'flipflops.png',
+            'followme.png',
+            'happynewyear.png',
+            'iloveyou1.png',
+            'iloveyou2.png',
+            'justmarried.png',
+            'love.png',
+            'loveyou.png',
+            'merrychristmas.png',
+            'merrychristmas1.png',
+            'ohyeah.png',
+            'palloncini1.png',
+            'photocamera.png',
+            'pizza.png',
+            'pleaseshare.png',
+            'santaclaus.png',
+            'savethedate.png',
+            'selfie.png',
+            'sunglasses.png',
+            'sunglasses1.png',
+            'taco.png',
+            'toast.png',
+        ];
+
+        const stickers = [];
+        let activeStickerId = '';
+
+        function populateStickers() {
+            const container = document.getElementById('stickersList');
+            if (!container) return;
+            container.innerHTML = '';
+            const files = Array.from(new Set(STICKER_FILES)).sort((a, b) => a.localeCompare(b));
+            for (const file of files) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'thumb';
+                btn.setAttribute('aria-pressed', 'false');
+                btn.setAttribute('aria-label', file);
+                const src = `assets/stickers/${encodeURI(file)}`;
+                btn.dataset.stickerSrc = src;
+
+                const img = document.createElement('img');
+                img.className = 'thumbImg';
+                img.alt = '';
+                img.loading = 'lazy';
+                img.decoding = 'async';
+                img.src = src;
+                btn.appendChild(img);
+
+                container.appendChild(btn);
+            }
+        }
+
+        function createStickerId() {
+            return `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+        }
+
+        function getStickerById(id) {
+            return stickers.find((s) => s.id === id) ?? null;
+        }
+
+        function updateStickerDom() {
+            const items = Array.from(document.querySelectorAll('.stickerItem'));
+            for (const item of items) {
+                if (!(item instanceof HTMLElement)) continue;
+                const id = item.dataset.stickerId ?? '';
+                const s = getStickerById(id);
+                if (!s) continue;
+                item.style.left = `${s.x * 100}%`;
+                item.style.top = `${s.y * 100}%`;
+                item.style.width = `${s.w * 100}%`;
+                item.style.transform = `translate(-50%, -50%) rotate(${s.rot}deg)`;
+                const isStickersLayer = Boolean(item.closest('#stickers'));
+                item.classList.toggle('active', isStickersLayer && id === activeStickerId);
+            }
+        }
+
+        function renderStickerLayers() {
+            const layers = Array.from(document.querySelectorAll('[data-sticker-layer]'));
+            for (const layer of layers) {
+                if (!(layer instanceof HTMLElement)) continue;
+                const isFinal = Boolean(layer.closest('#final'));
+                const isStickers = Boolean(layer.closest('#stickers'));
+                if (!isFinal && !isStickers) {
+                    layer.innerHTML = '';
+                    continue;
+                }
+
+                layer.innerHTML = '';
+                for (const s of stickers) {
+                    const item = document.createElement('div');
+                    item.className = 'stickerItem';
+                    if (isStickers && s.id === activeStickerId) item.classList.add('active');
+                    item.dataset.stickerId = s.id;
+                    item.style.left = `${s.x * 100}%`;
+                    item.style.top = `${s.y * 100}%`;
+                    item.style.width = `${s.w * 100}%`;
+                    item.style.transform = `translate(-50%, -50%) rotate(${s.rot}deg)`;
+
+                    const img = document.createElement('img');
+                    img.className = 'stickerImg';
+                    img.alt = '';
+                    img.draggable = false;
+                    img.src = s.src;
+                    item.appendChild(img);
+
+                    if (isStickers) {
+                        const rotate = document.createElement('div');
+                        rotate.className = 'stickerHandle stickerRotate';
+                        rotate.dataset.handle = 'rotate';
+                        item.appendChild(rotate);
+
+                        const resize = document.createElement('div');
+                        resize.className = 'stickerHandle stickerResize';
+                        resize.dataset.handle = 'resize';
+                        item.appendChild(resize);
+                    }
+
+                    layer.appendChild(item);
+                }
+            }
+        }
+
+        function setActiveSticker(id) {
+            activeStickerId = id;
+            updateStickerDom();
+        }
+
+        function addSticker(src) {
+            const layer = document.querySelector('#stickers [data-sticker-layer]');
+            const defaultW = 0.28;
+            const w = defaultW;
+            const sticker = {
+                id: createStickerId(),
+                src,
+                x: 0.5,
+                y: 0.5,
+                w,
+                rot: 0,
+            };
+            stickers.push(sticker);
+            activeStickerId = sticker.id;
+            if (layer) {
+                const inner = layer.closest('.monitorInner');
+                if (inner) hideMonitorPlaceholder(inner);
+            }
+            renderStickerLayers();
+        }
+
+        function undoLastSticker() {
+            if (stickers.length === 0) return;
+            stickers.pop();
+            activeStickerId = stickers.length ? stickers[stickers.length - 1].id : '';
+            renderStickerLayers();
+        }
+
+        async function ensureCameraStream() {
+            if (!liveVideo || !(liveVideo instanceof HTMLVideoElement)) return null;
+            if (liveStream) return liveStream;
+            if (!navigator.mediaDevices?.getUserMedia) return null;
+            try {
+                liveStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'user' },
+                    audio: false,
+                });
+                liveVideo.srcObject = liveStream;
+                await liveVideo.play();
+                const inner = liveVideo.closest('.monitorInner');
+                if (inner) hideMonitorPlaceholder(inner);
+                return liveStream;
+            } catch {
+                const inner = liveVideo.closest('.monitorInner');
+                if (inner) setMonitorPlaceholder(inner, 'Camera non disponibile');
+                return null;
+            }
+        }
+
+        function getCameraBackendMode() {
+            const el = document.getElementById('cameraBackend');
+            if (!el || !(el instanceof HTMLSelectElement)) return 'webcam';
+            const v = el.value || 'webcam';
+            return v === 'canon' ? 'canon' : 'webcam';
+        }
+
+        function getCanonBridgeUrl() {
+            const el = document.getElementById('canonBridgeUrl');
+            if (!el || !(el instanceof HTMLInputElement)) return 'http://127.0.0.1:17555';
+            return el.value.trim() || 'http://127.0.0.1:17555';
+        }
+
+        function setCanonStatus(text) {
+            const el = document.getElementById('canonStatus');
+            if (!el || !(el instanceof HTMLElement)) return;
+            el.textContent = text;
+        }
+
+        async function fetchWithTimeout(url, init, timeoutMs) {
+            const controller = new AbortController();
+            const t = setTimeout(() => controller.abort(), timeoutMs);
+            try {
+                const res = await fetch(url, { ...init, signal: controller.signal });
+                return res;
+            } finally {
+                clearTimeout(t);
+            }
+        }
+
+        async function updateCanonBridgeStatus() {
+            const mode = getCameraBackendMode();
+            if (mode !== 'canon') {
+                setCanonStatus('Modalità: Webcam');
+                return;
+            }
+            const base = getCanonBridgeUrl().replace(/\/+$/, '');
+            try {
+                const res = await fetchWithTimeout(`${base}/status`, { method: 'GET' }, 800);
+                if (!res.ok) throw new Error('bad_status');
+                const data = await res.json().catch(() => ({}));
+                const model = typeof data?.model === 'string' ? data.model.trim() : '';
+                setCanonStatus(model ? `Canon: ${model}` : 'Canon: pronta');
+            } catch {
+                setCanonStatus('Canon: non rilevata');
+            }
+        }
+
+        function setAdminCameraPreview(url) {
+            const img = document.querySelector('#admin [data-camera-preview]');
+            if (!img || !(img instanceof HTMLImageElement)) return;
+            img.src = url;
+            img.style.display = 'block';
+            const inner = img.closest('.monitorInner');
+            if (inner) hideMonitorPlaceholder(inner);
+        }
+
+        async function runAdminCameraTestShot() {
+            const mode = getCameraBackendMode();
+            if (mode === 'webcam') {
+                const raw = await capturePhotoFromLiveVideoRaw();
+                if (raw) setAdminCameraPreview(raw);
+                return;
+            }
+            const base = getCanonBridgeUrl().replace(/\/+$/, '');
+            try {
+                const res = await fetchWithTimeout(`${base}/capture`, { method: 'POST' }, 5000);
+                if (!res.ok) throw new Error('bad_status');
+                const data = await res.json().catch(() => ({}));
+                const dataUrl = typeof data?.imageDataUrl === 'string' ? data.imageDataUrl : (typeof data?.dataUrl === 'string' ? data.dataUrl : '');
+                if (dataUrl) {
+                    setAdminCameraPreview(dataUrl);
+                    setCanonStatus('Canon: scatto ok');
+                    return;
+                }
+                const url = typeof data?.url === 'string' ? data.url : '';
+                if (url) {
+                    const imgRes = await fetchWithTimeout(url, { method: 'GET' }, 5000);
+                    if (!imgRes.ok) throw new Error('img_bad');
+                    const blob = await imgRes.blob();
+                    const objectUrl = URL.createObjectURL(blob);
+                    setAdminCameraPreview(objectUrl);
+                    setCanonStatus('Canon: scatto ok');
+                    return;
+                }
+                setCanonStatus('Canon: risposta non valida');
+            } catch {
+                setCanonStatus('Canon: non disponibile');
+                const inner = document.querySelector('#admin .adminPanel[data-admin-panel="camera"] .monitorInner');
+                if (inner) setMonitorPlaceholder(inner, 'Canon non disponibile');
+            }
+        }
+
+        let capturedShots = [];
+
+        async function applyCaptureGuideFromRuntime() {
+            const wrap = document.querySelector('#capture [data-capture-guide]');
+            const box = document.querySelector('#capture [data-capture-guide-box]');
+            const video = document.getElementById('guideVideo');
+            const inner = document.querySelector('#capture .monitorInner');
+            if (!wrap || !(wrap instanceof HTMLElement) || !box || !(box instanceof HTMLElement) || !video || !(video instanceof HTMLVideoElement) || !inner || !(inner instanceof HTMLElement)) return;
+
+            const capturePage = document.getElementById('capture');
+            const isActive = Boolean(capturePage && capturePage.classList.contains('active'));
+            if (!isActive) {
+                wrap.style.display = 'none';
+                inner.classList.remove('guideOn');
+                return;
+            }
+
+            const { guide } = getRuntimeEventLayout(false);
+            if (!guide) {
+                wrap.style.display = 'none';
+                inner.classList.remove('guideOn');
+                return;
+            }
+
+            box.style.left = `${guide.x * 100}%`;
+            box.style.top = `${guide.y * 100}%`;
+            box.style.width = `${guide.w * 100}%`;
+            box.style.height = `${guide.h * 100}%`;
+            box.style.transform = `translate(-50%, -50%) rotate(${guide.rot}deg)`;
+
+            const stream = await ensureCameraStream();
+            if (stream && video.srcObject !== stream) {
+                video.srcObject = stream;
+                await video.play().catch(() => { });
+            }
+
+            wrap.style.display = 'block';
+            inner.classList.add('guideOn');
+        }
+
+        function getRuntimeEventLayout(withDefaultShot = false) {
+            let raw = runtimeEvent.layoutJson.trim();
+            if (!raw) {
+                const layoutInput = getEventLayoutInput();
+                raw = layoutInput ? layoutInput.value.trim() : '';
+            }
+            let layers = [];
+            if (raw) {
+                try {
+                    const parsed = JSON.parse(raw);
+                    layers = Array.isArray(parsed?.layers) ? parsed.layers : [];
+                } catch { }
+            }
+            const clean = [];
+            for (const l of layers) {
+                if (!l || typeof l !== 'object') continue;
+                const type = l.type === 'frame' ? 'frame' : (l.type === 'guide' ? 'guide' : 'shot');
+                const src = typeof l.src === 'string' ? l.src : '';
+                const x = Number(l.x);
+                const y = Number(l.y);
+                const w = Number(l.w);
+                const h = Number(l.h);
+                const rot = Number(l.rot);
+                if (![x, y, w, h, rot].every((n) => Number.isFinite(n))) continue;
+                if (type === 'frame' && !src) continue;
+                clean.push({ type, src, x, y, w, h, rot });
+            }
+            let shots = clean.filter((l) => l.type === 'shot');
+            const guide = clean.filter((l) => l.type === 'guide').slice(-1)[0] ?? null;
+            const frame = clean.filter((l) => l.type === 'frame').slice(-1)[0] ?? null;
+            if (withDefaultShot && shots.length === 0) {
+                shots = [{ type: 'shot', src: '__runtime__', x: 0.5, y: 0.5, w: 1, h: 1, rot: 0 }];
+            }
+            return { shots, frame, guide };
+        }
+
+        function renderCaptureLayoutOverlay() {
+            const overlay = document.querySelector('#capture [data-event-capture-overlay]');
+            if (!overlay || !(overlay instanceof HTMLElement)) return;
+            overlay.innerHTML = '';
+            const { shots, frame } = getRuntimeEventLayout(false);
+            if (!shots.length && !frame) return;
+
+            if (frame) {
+                const item = document.createElement('div');
+                item.className = 'eventFrameBox';
+                item.style.left = `${frame.x * 100}%`;
+                item.style.top = `${frame.y * 100}%`;
+                item.style.width = `${frame.w * 100}%`;
+                item.style.height = `${frame.h * 100}%`;
+                item.style.transform = `translate(-50%, -50%) rotate(${frame.rot}deg)`;
+                const img = document.createElement('img');
+                img.className = 'eventFrameImg';
+                img.alt = '';
+                img.decoding = 'async';
+                img.src = frame.src;
+                item.appendChild(img);
+                overlay.appendChild(item);
+            }
+
+            applyCaptureGuideFromRuntime();
+        }
+
+        function updateShotProgress() {
+            const el = document.getElementById('shotProgress');
+            if (!el || !(el instanceof HTMLElement)) return;
+            const { shots } = getRuntimeEventLayout(false);
+            if (shots.length <= 1) {
+                el.textContent = '';
+                el.style.display = 'none';
+                return;
+            }
+            const n = Math.min(capturedShots.length + 1, shots.length);
+            el.textContent = `${n}/${shots.length}`;
+            el.style.display = 'grid';
+        }
+
+        function getOutputCanvasSize() {
+            const vertical = runtimeEvent.monitorOrientationIndex === 1;
+            return vertical ? { w: 1000, h: 1500 } : { w: 1500, h: 1000 };
+        }
+
+        function loadImg(src) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.onerror = () => resolve(null);
+                img.src = src;
+            });
+        }
+
+        function drawCover(ctx, img, dw, dh) {
+            const sw = img.naturalWidth || img.width;
+            const sh = img.naturalHeight || img.height;
+            if (!sw || !sh || !dw || !dh) return;
+            const rSrc = sw / sh;
+            const rDst = dw / dh;
+            let sx = 0;
+            let sy = 0;
+            let sW = sw;
+            let sH = sh;
+            if (rSrc > rDst) {
+                sW = sh * rDst;
+                sx = (sw - sW) / 2;
+            } else {
+                sH = sw / rDst;
+                sy = (sh - sH) / 2;
+            }
+            ctx.drawImage(img, sx, sy, sW, sH, -dw / 2, -dh / 2, dw, dh);
+        }
+
+        function drawContain(ctx, img, dw, dh) {
+            const sw = img.naturalWidth || img.width;
+            const sh = img.naturalHeight || img.height;
+            if (!sw || !sh || !dw || !dh) return;
+            const scale = Math.min(dw / sw, dh / sh);
+            const w = sw * scale;
+            const h = sh * scale;
+            ctx.drawImage(img, -w / 2, -h / 2, w, h);
+        }
+
+        async function composeEventLayoutImage() {
+            const { w, h } = getOutputCanvasSize();
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return '';
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, w, h);
+
+            const { shots, frame } = getRuntimeEventLayout(true);
+            for (let i = 0; i < shots.length; i++) {
+                const shot = shots[i];
+                const src = shot.src === '__runtime__' ? (capturedShots[0] ?? '') : (capturedShots[i] ?? '');
+                if (!src) continue;
+                const img = await loadImg(src);
+                if (!img) continue;
+                ctx.save();
+                ctx.translate(shot.x * w, shot.y * h);
+                ctx.rotate((shot.rot * Math.PI) / 180);
+                ctx.filter = classicFilterCss(selectedClassicFilter);
+                drawCover(ctx, img, shot.w * w, shot.h * h);
+                ctx.restore();
+            }
+
+            if (frame?.src) {
+                const img = await loadImg(frame.src);
+                if (img) {
+                    ctx.save();
+                    ctx.translate(frame.x * w, frame.y * h);
+                    ctx.rotate((frame.rot * Math.PI) / 180);
+                    ctx.filter = 'none';
+                    drawContain(ctx, img, frame.w * w, frame.h * h);
+                    ctx.restore();
+                }
+            }
+
+            return canvas.toDataURL('image/png');
+        }
+
+        async function capturePhotoFromLiveVideoRaw() {
+            const stream = await ensureCameraStream();
+            if (!stream || !liveVideo) return '';
+            const w = liveVideo.videoWidth;
+            const h = liveVideo.videoHeight;
+            if (!w || !h) return '';
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return '';
+            ctx.drawImage(liveVideo, 0, 0, w, h);
+            return canvas.toDataURL('image/jpeg', 0.92);
+        }
+
+        async function captureShotAndApplyLayout() {
+            ensureSessionId();
+            updateShotProgress();
+            const raw = await capturePhotoFromLiveVideoRaw();
+            if (!raw) return '';
+            capturedShots.push(raw);
+            const composite = await composeEventLayoutImage();
+            if (composite) setCapturedPhoto(composite);
+            updateShotProgress();
+            applyCaptureGuideFromRuntime();
+            return composite;
+        }
+
+        function wait(ms) {
+            return new Promise((resolve) => setTimeout(resolve, ms));
+        }
+
+        async function runCountdown(seconds) {
+            const el = document.getElementById('countdown');
+            if (!el) {
+                await wait(seconds * 1000);
+                return;
+            }
+            el.style.display = 'grid';
+            for (let s = seconds; s > 0; s--) {
+                el.textContent = String(s);
+                await wait(900);
+            }
+            el.textContent = '';
+            el.style.display = 'none';
+        }
+
+        function handlePageChange(pageId, prevPageId) {
+            applyRuntimeEventToUi();
+            if (pageId === 'capture') {
+                ensureCameraStream();
+                renderCaptureLayoutOverlay();
+                updateShotProgress();
+                applyCaptureGuideFromRuntime();
+            }
+            if (pageId === 'ai') {
+                const raw = capturedShots.length ? capturedShots[capturedShots.length - 1] : '';
+                if (raw) setAiOriginalPhoto(raw);
+            }
+            if (pageId === 'final') {
+                isFinalQrOpen = false;
+                setFinalQrVisible(false, '');
+                const qrImg = document.querySelector('#final [data-qr-final]');
+                if (qrImg && qrImg instanceof HTMLImageElement) qrImg.removeAttribute('src');
+                composePrintImage().then((url) => setAdminPrintPreview(url));
+            }
+            if (pageId === 'capture' && prevPageId === 'intro') {
+                resetSessionState();
+            }
+            if (pageId === 'capture' && prevPageId === 'preview') {
+                resetSessionState();
+            }
+            applyClassicFilter();
+            renderStickerLayers();
+            renderEventEditor();
+        }
+
+        let lastSyntheticClickAt = 0;
+
+        document.addEventListener('pointerup', (e) => {
+            if (e.pointerType === 'mouse' && e.button !== 0) return;
+            const target = e.target instanceof Element ? e.target : null;
+            if (!target) return;
+            if (target.closest('input, select, textarea, label')) return;
+            if (target.closest('.stickerItem, .eventLayerItem')) return;
+            if (typeof stickerDrag !== 'undefined' && stickerDrag) return;
+            if (typeof eventDrag !== 'undefined' && eventDrag) return;
+            const clickable = target.closest('button, [data-go], [data-action]');
+            if (!clickable || !(clickable instanceof HTMLElement)) return;
+            lastSyntheticClickAt = Date.now();
+            clickable.click();
+        }, { passive: true });
+
+        document.addEventListener('click', async (e) => {
+            if (e.isTrusted && Date.now() - lastSyntheticClickAt < 600) return;
+            const target = e.target instanceof Element ? e.target : null;
+            if (!target) return;
+
+            const finalQrBtn = target.closest('#final [data-final-qr]');
+            if (finalQrBtn && finalQrBtn instanceof HTMLButtonElement) {
+                await toggleFinalQr();
+                return;
+            }
+
+            const stickerBtn = target.closest('#stickers [data-sticker-src]');
+            if (stickerBtn && stickerBtn instanceof HTMLButtonElement) {
+                const src = stickerBtn.dataset.stickerSrc ?? '';
+                if (src) addSticker(src);
+                const all = Array.from(document.querySelectorAll('#stickers [data-sticker-src]'));
+                for (const el of all) {
+                    if (!(el instanceof HTMLButtonElement)) continue;
+                    el.setAttribute('aria-pressed', el === stickerBtn ? 'true' : 'false');
+                }
+                return;
+            }
+
+            const filterBtn = target.closest('#effects [data-filter]');
+            if (filterBtn && filterBtn instanceof HTMLButtonElement) {
+                const key = filterBtn.getAttribute('data-filter') ?? 'natural';
+                setClassicFilter(key);
+                return;
+            }
+
+            const modelBtn = target.closest('.modelCard');
+            if (modelBtn && modelBtn instanceof HTMLButtonElement) {
+                const pressed = modelBtn.getAttribute('aria-pressed') === 'true';
+                modelBtn.setAttribute('aria-pressed', pressed ? 'false' : 'true');
+                return;
+            }
+
+            const actionBtn = target.closest('[data-action]');
+            if (actionBtn && actionBtn instanceof HTMLButtonElement) {
+                const action = actionBtn.getAttribute('data-action');
+                if (action === 'save-config') {
+                    saveAdminConfig();
+                    return;
+                }
+                if (action === 'print-test') {
+                    await runPrint('admin');
+                    return;
+                }
+                if (action === 'final-print') {
+                    await runPrint('final');
+                    return;
+                }
+                if (action === 'camera-test-shot') {
+                    actionBtn.disabled = true;
+                    await updateCanonBridgeStatus();
+                    await runAdminCameraTestShot();
+                    actionBtn.disabled = false;
+                    return;
+                }
+                if (action === 'event-add-shot') {
+                    addEventShotLayer();
+                    return;
+                }
+                if (action === 'event-add-guide') {
+                    setEventGuideLayer();
+                    return;
+                }
+                if (action === 'event-load-frame') {
+                    const input = document.getElementById('eventFrameFile');
+                    if (input && input instanceof HTMLInputElement) input.click();
+                    return;
+                }
+                if (action === 'event-select-shots') {
+                    selectTopEventLayer('shot');
+                    return;
+                }
+                if (action === 'event-select-guide') {
+                    selectTopEventLayer('guide');
+                    return;
+                }
+                if (action === 'event-select-frame') {
+                    selectTopEventLayer('frame');
+                    return;
+                }
+                if (action === 'event-delete-layer') {
+                    deleteActiveEventLayer();
+                    return;
+                }
+                if (action === 'event-load-intro-video') {
+                    const input = document.getElementById('eventIntroVideoFile');
+                    if (input && input instanceof HTMLInputElement) input.click();
+                    return;
+                }
+                if (action === 'save-event') {
+                    syncRuntimeEventFromAdmin();
+                    const saved = saveEventPreset();
+                    if (saved) {
+                        applyEventIntroVideoFromRuntime();
+                        renderCaptureLayoutOverlay();
+                        updateShotProgress();
+                        resetEventSection();
+                    } else {
+                        const nameEl = document.getElementById('eventName');
+                        if (nameEl && nameEl instanceof HTMLInputElement) nameEl.focus();
+                    }
+                    return;
+                }
+                if (action === 'delete-event') {
+                    deleteSelectedEventPreset();
+                    return;
+                }
+                if (action === 'undo-sticker') {
+                    undoLastSticker();
+                    return;
+                }
+            }
+
+            const captureBtn = target.closest('#capture [data-go="preview"]');
+            if (captureBtn) {
+                if (captureBtn instanceof HTMLButtonElement) captureBtn.disabled = true;
+                await runCountdown(3);
+                await captureShotAndApplyLayout();
+                if (captureBtn instanceof HTMLButtonElement) captureBtn.disabled = false;
+                const { shots } = getRuntimeEventLayout();
+                const required = Math.max(1, shots.length || 1);
+                if (capturedShots.length >= required) {
+                    go('preview');
+                } else {
+                    renderCaptureLayoutOverlay();
+                }
+                return;
+            }
+
+            const adminEl = target.closest('[data-admin]');
+            if (adminEl) {
+                const key = adminEl.getAttribute('data-admin');
+                if (!key) return;
+                const panels = Array.from(document.querySelectorAll('#admin .adminPanel'));
+                for (const p of panels) p.classList.remove('active');
+                const nextPanel = document.querySelector(`#admin .adminPanel[data-admin-panel="${key}"]`);
+                if (nextPanel) nextPanel.classList.add('active');
+                renderEventEditor();
+                if (key === 'camera') updateCanonBridgeStatus();
+                if (key === 'stampa') {
+                    setPrintStatus(isPrintEnabled() ? 'Stampa: pronta' : 'Stampa: disabilitata');
+                    composePrintImage().then((url) => setAdminPrintPreview(url));
+                }
+                return;
+            }
+
+            const goEl = target.closest('[data-go]');
+            if (goEl) {
+                const pageId = goEl.getAttribute('data-go');
+                if (pageId) go(pageId);
+                return;
+            }
+
+            const intro = target.closest('#intro');
+            if (intro) go('capture');
+        });
+
+        let stickerDrag = null;
+
+        function clamp01(n) {
+            return Math.max(0, Math.min(1, n));
+        }
+
+        function getLayerRectFromTarget(el) {
+            const layer = el.closest('[data-sticker-layer]');
+            if (!layer) return null;
+            return layer.getBoundingClientRect();
+        }
+
+        function getCenterPx(s, rect) {
+            return {
+                cx: rect.left + s.x * rect.width,
+                cy: rect.top + s.y * rect.height,
             };
         }
 
-        function sortItems(items) {
-            const rank = { original: 1, layout: 2, final: 3, ai: 4 };
-            return [...items].sort((a, b) => {
-                const ra = rank[a.type] || 99;
-                const rb = rank[b.type] || 99;
-                if (ra !== rb) return ra - rb;
-                return (a.createdAt || 0) - (b.createdAt || 0);
-            });
+        function isStickersPageActive() {
+            const stickersPage = document.getElementById('stickers');
+            return Boolean(stickersPage && stickersPage.classList.contains('active'));
         }
 
-        function render(manifest) {
-            lastManifest = manifest;
-            grid.innerHTML = '';
-            expiredCard.style.display = 'none';
+        function startStickerDrag(target, clientX, clientY, dragKey, captureEl) {
+            if (!isStickersPageActive()) return false;
+            const item = target.closest('.stickerItem');
+            if (!item || !(item instanceof HTMLElement)) return false;
+            const id = item.dataset.stickerId ?? '';
+            const s = getStickerById(id);
+            if (!s) return false;
+            setActiveSticker(id);
 
-            const now = Date.now();
-            const expiresAt = Number(manifest.expiresAt || 0);
-            if (expiresAt && Number.isFinite(expiresAt) && now > expiresAt) {
-                expiredCard.style.display = 'block';
+            const rect = getLayerRectFromTarget(item);
+            if (!rect) return false;
+
+            const handle = target.closest('.stickerHandle');
+            const mode = handle instanceof HTMLElement ? handle.dataset.handle : 'move';
+            const { cx, cy } = getCenterPx(s, rect);
+
+            const startAngle = Math.atan2(clientY - cy, clientX - cx);
+            const startDist = Math.hypot(clientX - cx, clientY - cy);
+
+            stickerDrag = {
+                pointerId: dragKey,
+                mode: mode || 'move',
+                id,
+                startX: s.x,
+                startY: s.y,
+                startW: s.w,
+                startRot: s.rot,
+                startClientX: clientX,
+                startClientY: clientY,
+                startAngle,
+                startDist,
+                rect,
+            };
+
+            if (captureEl && captureEl instanceof HTMLElement && 'setPointerCapture' in captureEl && typeof captureEl.setPointerCapture === 'function') {
+                try {
+                    captureEl.setPointerCapture(dragKey);
+                } catch { }
             }
+            return true;
+        }
 
-            const items = Array.isArray(manifest.items) ? sortItems(manifest.items) : [];
-            const title = manifest.eventName ? `Evento: ${manifest.eventName}` : 'Evento';
-            const sid = manifest.sessionId ? `Sessione: ${manifest.sessionId}` : '';
-            setStatus(`${title}${sid ? ' • ' + sid : ''} • ${items.length} file`);
+        document.addEventListener('pointerdown', (e) => {
+            const target = e.target instanceof Element ? e.target : null;
+            if (!target) return;
+            if (startStickerDrag(target, e.clientX, e.clientY, e.pointerId, target.closest('.stickerItem'))) {
+                e.preventDefault();
+            }
+        }, { passive: false });
 
-            if (items.length === 0) {
-                const msg = document.createElement('div');
-                msg.className = 'card muted';
-                msg.textContent = 'Nessuna foto trovata in questa sessione. Rigenera il QR dopo aver fatto almeno uno scatto (e aver raggiunto la schermata Finale).';
-                grid.appendChild(msg);
+        function updateStickerDrag(clientX, clientY, dragKey) {
+            if (!stickerDrag || stickerDrag.pointerId !== dragKey) return;
+            const s = getStickerById(stickerDrag.id);
+            if (!s) return;
+
+            const rect = stickerDrag.rect;
+            const dx = clientX - stickerDrag.startClientX;
+            const dy = clientY - stickerDrag.startClientY;
+
+            if (stickerDrag.mode === 'move') {
+                s.x = clamp01(stickerDrag.startX + dx / rect.width);
+                s.y = clamp01(stickerDrag.startY + dy / rect.height);
+                updateStickerDom();
                 return;
             }
 
-            for (const it of items) {
-                const url = String(it.url || '');
-                if (!url) continue;
+            const { cx, cy } = getCenterPx(s, rect);
 
-                const type = String(it.type || 'file');
-                const name = type === 'original' ? 'Originale' :
-                    type === 'layout' ? 'Layout' :
-                        type === 'final' ? 'Finale' :
-                            type === 'ai' ? 'IA' : type;
+            if (stickerDrag.mode === 'rotate') {
+                const ang = Math.atan2(clientY - cy, clientX - cx);
+                const delta = (ang - stickerDrag.startAngle) * (180 / Math.PI);
+                s.rot = stickerDrag.startRot + delta;
+                updateStickerDom();
+                return;
+            }
 
-                const card = document.createElement('a');
-                card.className = 'item';
-                card.href = url;
-                card.target = '_blank';
-                card.rel = 'noopener noreferrer';
-
-                const img = document.createElement('img');
-                img.loading = 'lazy';
-                img.alt = name;
-                img.src = url;
-
-                const meta = document.createElement('div');
-                meta.className = 'meta';
-
-                const tag = document.createElement('div');
-                tag.className = 'tag';
-                tag.textContent = name;
-
-                const dl = document.createElement('a');
-                dl.className = 'link';
-                dl.href = url;
-                dl.download = '';
-                dl.textContent = 'Download';
-
-                meta.appendChild(tag);
-                meta.appendChild(dl);
-
-                card.appendChild(img);
-                card.appendChild(meta);
-                grid.appendChild(card);
+            if (stickerDrag.mode === 'resize') {
+                const dist = Math.hypot(clientX - cx, clientY - cy);
+                const ratio = stickerDrag.startDist ? dist / stickerDrag.startDist : 1;
+                const nextW = stickerDrag.startW * ratio;
+                s.w = Math.max(0.08, Math.min(0.9, nextW));
+                updateStickerDom();
             }
         }
 
-        function loadManifestFromScript(url) {
-            return new Promise((resolve, reject) => {
-                window.__pbManifest = null;
-                const s = document.createElement('script');
-                s.async = true;
-                s.src = url + (url.includes('?') ? '&' : '?') + 'cb=' + Date.now();
-                const timeout = setTimeout(() => {
-                    s.remove();
-                    reject(new Error('timeout'));
-                }, 6000);
-                s.onload = () => {
-                    clearTimeout(timeout);
-                    const m = window.__pbManifest;
-                    s.remove();
-                    if (m && typeof m === 'object') resolve(m);
-                    else reject(new Error('no_manifest'));
+        document.addEventListener('pointermove', (e) => {
+            updateStickerDrag(e.clientX, e.clientY, e.pointerId);
+        });
+
+        document.addEventListener('pointerup', (e) => {
+            if (!stickerDrag || stickerDrag.pointerId !== e.pointerId) return;
+            stickerDrag = null;
+        });
+
+        document.addEventListener('pointercancel', (e) => {
+            if (!stickerDrag || stickerDrag.pointerId !== e.pointerId) return;
+            stickerDrag = null;
+        });
+
+        document.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return;
+            const target = e.target instanceof Element ? e.target : null;
+            if (!target) return;
+            const started = startStickerDrag(target, e.clientX, e.clientY, 'mouse', null);
+            if (started) e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if ((e.buttons & 1) !== 1) return;
+            updateStickerDrag(e.clientX, e.clientY, 'mouse');
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (!stickerDrag || stickerDrag.pointerId !== 'mouse') return;
+            stickerDrag = null;
+        });
+
+        document.addEventListener('change', async (e) => {
+            const target = e.target instanceof Element ? e.target : null;
+            if (!target) return;
+            if (target instanceof HTMLInputElement && target.type === 'checkbox') {
+                const ids = new Set(['pageIntroEnabled', 'pageStickersEnabled', 'pageEffectsEnabled', 'pageAiEnabled', 'pageQrEnabled']);
+                if (ids.has(target.id)) {
+                    syncRuntimeEventFromAdmin();
+                    applyRuntimeEventToUi();
+                    return;
+                }
+            }
+            if (target instanceof HTMLSelectElement && target.id === 'cameraBackend') {
+                updateCanonBridgeStatus();
+                return;
+            }
+            if (target instanceof HTMLInputElement && target.id === 'canonBridgeUrl') {
+                updateCanonBridgeStatus();
+                return;
+            }
+            if (target instanceof HTMLSelectElement && target.id === 'monitorOrientation') {
+                syncRuntimeEventFromAdmin();
+                applyRuntimeEventToUi();
+                renderCaptureLayoutOverlay();
+                updateShotProgress();
+                return;
+            }
+            if (target instanceof HTMLInputElement && target.id === 'eventFrameFile') {
+                const file = target.files?.[0] ?? null;
+                target.value = '';
+                if (!file) return;
+                const reader = new FileReader();
+                const dataUrl = await new Promise((resolve) => {
+                    reader.onload = () => resolve(String(reader.result ?? ''));
+                    reader.onerror = () => resolve('');
+                    reader.readAsDataURL(file);
+                });
+                if (dataUrl) setEventFrameLayer(dataUrl);
+            }
+            if (target instanceof HTMLInputElement && target.id === 'eventIntroVideoFile') {
+                const file = target.files?.[0] ?? null;
+                target.value = '';
+                if (!file) return;
+                const src = URL.createObjectURL(file);
+                const input = document.getElementById('eventIntroVideoSrc');
+                if (input && input instanceof HTMLInputElement) input.value = src;
+                syncRuntimeEventFromAdmin();
+                applyEventIntroVideoFromRuntime();
+            }
+        });
+
+        function isAdminEventPanelActive() {
+            const admin = document.getElementById('admin');
+            if (!admin || !admin.classList.contains('active')) return false;
+            const panel = document.querySelector('#admin .adminPanel[data-admin-panel="evento"]');
+            return Boolean(panel && panel.classList.contains('active'));
+        }
+
+        function getEventEditorRectFromTarget(el) {
+            const layer = el.closest('[data-event-editor-layer]');
+            if (!layer) return null;
+            return layer.getBoundingClientRect();
+        }
+
+        function eventCenterPx(l, rect) {
+            return {
+                cx: rect.left + l.x * rect.width,
+                cy: rect.top + l.y * rect.height,
+            };
+        }
+
+        function startEventDrag(target, clientX, clientY, key) {
+            if (!isAdminEventPanelActive()) return false;
+            const item = target.closest('.eventLayerItem');
+            if (!item || !(item instanceof HTMLElement)) return false;
+            const id = item.dataset.eventLayerId ?? '';
+            const l = getEventLayerById(id);
+            if (!l) return false;
+            setActiveEventLayer(id);
+
+            const rect = getEventEditorRectFromTarget(item);
+            if (!rect) return false;
+
+            const handle = target.closest('.eventHandle');
+            const mode = handle instanceof HTMLElement ? handle.dataset.handle : 'move';
+            const { cx, cy } = eventCenterPx(l, rect);
+            const startAngle = Math.atan2(clientY - cy, clientX - cx);
+            const startDist = Math.hypot(clientX - cx, clientY - cy);
+
+            eventDrag = {
+                key,
+                mode: mode || 'move',
+                id,
+                startX: l.x,
+                startY: l.y,
+                startW: l.w,
+                startH: l.h,
+                startRot: l.rot,
+                startClientX: clientX,
+                startClientY: clientY,
+                startAngle,
+                startDist,
+                rect,
+            };
+            return true;
+        }
+
+        function updateEventDrag(clientX, clientY, key) {
+            if (!eventDrag || eventDrag.key !== key) return;
+            const l = getEventLayerById(eventDrag.id);
+            if (!l) return;
+            const rect = eventDrag.rect;
+            const dx = clientX - eventDrag.startClientX;
+            const dy = clientY - eventDrag.startClientY;
+
+            if (eventDrag.mode === 'move') {
+                l.x = clamp01(eventDrag.startX + dx / rect.width);
+                l.y = clamp01(eventDrag.startY + dy / rect.height);
+                updateEventEditorDom();
+                return;
+            }
+
+            const keepEl = document.getElementById('layoutKeepProportions');
+            const keep = Boolean(keepEl && keepEl instanceof HTMLInputElement && keepEl.checked);
+            const { cx, cy } = eventCenterPx(l, rect);
+
+            if (eventDrag.mode === 'rotate') {
+                const ang = Math.atan2(clientY - cy, clientX - cx);
+                const delta = (ang - eventDrag.startAngle) * (180 / Math.PI);
+                l.rot = eventDrag.startRot + delta;
+                updateEventEditorDom();
+                return;
+            }
+
+            if (eventDrag.mode === 'resize') {
+                if (keep) {
+                    const dist = Math.hypot(clientX - cx, clientY - cy);
+                    const ratio = eventDrag.startDist ? dist / eventDrag.startDist : 1;
+                    l.w = Math.max(0.05, Math.min(1.5, eventDrag.startW * ratio));
+                    l.h = Math.max(0.05, Math.min(1.5, eventDrag.startH * ratio));
+                } else {
+                    l.w = Math.max(0.05, Math.min(1.5, eventDrag.startW + dx / rect.width));
+                    l.h = Math.max(0.05, Math.min(1.5, eventDrag.startH + dy / rect.height));
+                }
+                updateEventEditorDom();
+            }
+        }
+
+        document.addEventListener('pointerdown', (e) => {
+            const target = e.target instanceof Element ? e.target : null;
+            if (!target) return;
+            if (startEventDrag(target, e.clientX, e.clientY, e.pointerId)) e.preventDefault();
+        }, { passive: false });
+
+        document.addEventListener('pointermove', (e) => {
+            updateEventDrag(e.clientX, e.clientY, e.pointerId);
+        });
+
+        document.addEventListener('pointerup', (e) => {
+            if (!eventDrag || eventDrag.key !== e.pointerId) return;
+            eventDrag = null;
+        });
+
+        document.addEventListener('pointercancel', (e) => {
+            if (!eventDrag || eventDrag.key !== e.pointerId) return;
+            eventDrag = null;
+        });
+
+        document.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return;
+            const target = e.target instanceof Element ? e.target : null;
+            if (!target) return;
+            if (startEventDrag(target, e.clientX, e.clientY, 'mouse-event')) e.preventDefault();
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if ((e.buttons & 1) !== 1) return;
+            updateEventDrag(e.clientX, e.clientY, 'mouse-event');
+        });
+
+        document.addEventListener('mouseup', () => {
+            if (!eventDrag || eventDrag.key !== 'mouse-event') return;
+            eventDrag = null;
+        });
+
+        document.addEventListener('keydown', (e) => {
+            const t = e.target instanceof Element ? e.target : null;
+            if (t) {
+                if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement) return;
+                if (t.getAttribute('contenteditable') === 'true') return;
+            }
+            const k = e.key;
+            if (k === '1') go('intro');
+            if (k === '2') go('capture');
+            if (k === '3') go('preview');
+            if (k === '4') go('effects');
+            if (k === '5') go('stickers');
+            if (k === '6') go('ai');
+            if (k === '7') go('final');
+            if (k === '8') go('admin');
+        });
+
+        function formatCameraValue(key, rawValue) {
+            const value = Number(rawValue);
+            if (key === 'aperture') return `f/${(value / 10).toFixed(1)}`;
+            if (key === 'iso') return String(value);
+            if (key === 'tempK') return `${value}K`;
+            if (key === 'aiStrength') return `${value}%`;
+            if (key === 'qrTtlHours') return `${value}h`;
+            if (key === 'qrRefreshSec') return value === 0 ? 'Off' : `${value}s`;
+            if (key === 'qrSizePx') return `${value}px`;
+            if (key === 'wb') {
+                const labels = ['Auto', 'Tungsteno', 'Fluorescente', 'Luce diurna', 'Nuvoloso'];
+                return labels[Math.max(0, Math.min(labels.length - 1, value))] ?? 'Auto';
+            }
+            return String(rawValue);
+        }
+
+        function initCameraSliders() {
+            const rows = Array.from(document.querySelectorAll('#admin .sliderRow'));
+            for (const row of rows) {
+                const input = row.querySelector('input.range');
+                const valueEl = row.querySelector('.sliderValue');
+                if (!input || !valueEl) continue;
+                const key = input.getAttribute('data-key') ?? '';
+                const update = () => {
+                    valueEl.textContent = formatCameraValue(key, input.value);
                 };
-                s.onerror = () => {
-                    clearTimeout(timeout);
-                    s.remove();
-                    reject(new Error('script_error'));
-                };
-                document.head.appendChild(s);
-            });
+                if (input.dataset.bound !== '1') {
+                    input.addEventListener('input', update);
+                    input.dataset.bound = '1';
+                }
+                update();
+            }
         }
 
-        function parseManifestText(text) {
-            const t = String(text || '').trim();
-            if (!t) throw new Error('empty');
-            if (t.startsWith('window.__pbManifest')) {
-                let s = t.replace(/^window\.__pbManifest\s*=\s*/, '');
-                s = s.replace(/;\s*$/, '');
-                return JSON.parse(s);
-            }
-            return JSON.parse(t);
-        }
+        const ADMIN_CONFIG_KEY = 'pb_admin_config_v1';
+        const EVENT_PRESETS_KEY = 'pb_event_presets_v1';
+        let eventPresetsCache = null;
 
-        async function fetchText(url) {
-            const res = await fetch(url, { cache: 'no-store' });
-            if (!res.ok) throw new Error(`http_${res.status}`);
-            return await res.text();
-        }
-
-        async function loadManifest() {
-            const single = getSingleUrl();
-            if (single) {
-                manifestInput.value = single;
-                renderSingle(single);
-                return;
-            }
-
-            const url = getManifestUrl();
-            if (!url) {
-                setStatus('Incolla un manifestUrl oppure apri con ?m=...');
-                return;
-            }
-            manifestInput.value = url;
-            setStatus('Carico…');
-
-            // 1) Prova via <script> (utile quando il manifest è JS: window.__pbManifest=...)
+        function readStore(key, fallback) {
             try {
-                const data = await loadManifestFromScript(url);
-                render(data);
-                return;
-            } catch { }
-
-            // 2) Prova fetch diretto come testo (JSON oppure JS) e parsing
-            try {
-                const text = await fetchText(url);
-                const data = parseManifestText(text);
-                render(data);
-                return;
-            } catch { }
-
-            // 3) Fallback CORS via proxy pubblico
-            try {
-                setStatus('Carico (fallback)…');
-                const proxy = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
-                const text = await fetchText(proxy);
-                const data = parseManifestText(text);
-                render(data);
-                return;
+                const raw = localStorage.getItem(key);
+                if (!raw) return fallback;
+                return JSON.parse(raw);
             } catch {
-                setStatus('Errore nel caricamento del manifest.');
+                return fallback;
             }
         }
 
-        async function downloadAll() {
-            if (!lastManifest || !Array.isArray(lastManifest.items)) return;
-            const urls = lastManifest.items.map((x) => String(x.url || '')).filter(Boolean);
-            for (const url of urls) {
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = '';
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-                await new Promise((r) => setTimeout(r, 200));
+        function writeStore(key, value) {
+            try {
+                localStorage.setItem(key, JSON.stringify(value));
+            } catch { }
+        }
+
+        function setPrintStatus(text) {
+            const el = document.getElementById('printStatusHint');
+            if (!el || !(el instanceof HTMLElement)) return;
+            el.textContent = text;
+        }
+
+        function isPrintEnabled() {
+            const el = document.getElementById('printOnlineEnabled');
+            return !(el && el instanceof HTMLInputElement) || el.checked;
+        }
+
+        function getLimitSession() {
+            const el = document.getElementById('limitSession');
+            if (!el || !(el instanceof HTMLInputElement)) return 0;
+            const n = Number(el.value);
+            return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+        }
+
+        function getLimitEvent() {
+            const el = document.getElementById('limitEvent');
+            if (!el || !(el instanceof HTMLInputElement)) return 0;
+            const n = Number(el.value);
+            return Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+        }
+
+        function getCurrentEventName() {
+            const el = document.getElementById('eventName');
+            if (!el || !(el instanceof HTMLInputElement)) return '';
+            return el.value.trim();
+        }
+
+        function getEventPrintCounts() {
+            return readStore(PRINT_EVENT_COUNT_KEY, {});
+        }
+
+        function setEventPrintCounts(counts) {
+            writeStore(PRINT_EVENT_COUNT_KEY, counts);
+        }
+
+        function getEventPrintCount(eventName) {
+            if (!eventName) return 0;
+            const counts = getEventPrintCounts();
+            const n = Number(counts[eventName] ?? 0);
+            return Number.isFinite(n) ? n : 0;
+        }
+
+        function incEventPrintCount(eventName) {
+            if (!eventName) return;
+            const counts = getEventPrintCounts();
+            const n = getEventPrintCount(eventName) + 1;
+            counts[eventName] = n;
+            setEventPrintCounts(counts);
+        }
+
+        function setAdminPrintPreview(url) {
+            const img = document.querySelector('#admin [data-print-preview]');
+            if (!img || !(img instanceof HTMLImageElement)) return;
+            if (!url) {
+                img.removeAttribute('src');
+                img.style.display = 'none';
+                const inner = img.closest('.monitorInner');
+                if (inner) {
+                    const placeholder = inner.querySelector('.placeholder');
+                    if (placeholder && placeholder instanceof HTMLElement) placeholder.style.display = '';
+                }
+                return;
+            }
+            img.src = url;
+            img.style.display = 'block';
+            const inner = img.closest('.monitorInner');
+            if (inner) hideMonitorPlaceholder(inner);
+        }
+
+        async function composePrintImage() {
+            if (!capturedPhotoUrl) return '';
+            const { w, h } = getOutputCanvasSize();
+            const base = await loadImg(capturedPhotoUrl);
+            if (!base) return '';
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return '';
+            ctx.drawImage(base, 0, 0, w, h);
+            for (const s of stickers) {
+                if (!s?.src) continue;
+                const img = await loadImg(s.src);
+                if (!img) continue;
+                const iw = img.naturalWidth || img.width;
+                const ih = img.naturalHeight || img.height;
+                if (!iw || !ih) continue;
+                const dw = s.w * w;
+                const dh = dw * (ih / iw);
+                ctx.save();
+                ctx.translate(s.x * w, s.y * h);
+                ctx.rotate((s.rot * Math.PI) / 180);
+                ctx.drawImage(img, -dw / 2, -dh / 2, dw, dh);
+                ctx.restore();
+            }
+            return canvas.toDataURL('image/png');
+        }
+
+        async function browserPrintDataUrl(dataUrl) {
+            const iframe = document.createElement('iframe');
+            iframe.style.position = 'fixed';
+            iframe.style.right = '0';
+            iframe.style.bottom = '0';
+            iframe.style.width = '0';
+            iframe.style.height = '0';
+            iframe.style.border = '0';
+            iframe.style.opacity = '0';
+            iframe.setAttribute('aria-hidden', 'true');
+            document.body.appendChild(iframe);
+
+            const doc = iframe.contentDocument;
+            if (!doc) {
+                iframe.remove();
+                return false;
+            }
+
+            const html =
+                '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Stampa</title>' +
+                '<style>html,body{margin:0;padding:0}img{width:100%;height:auto;display:block}</style>' +
+                '</head><bo' + 'dy><img src="' + dataUrl + '"></bo' + 'dy></ht' + 'ml>';
+
+            doc.open();
+            doc.write(html);
+            doc.close();
+
+            await new Promise((r) => setTimeout(r, 60));
+
+            const w = iframe.contentWindow;
+            if (!w) {
+                iframe.remove();
+                return false;
+            }
+
+            const done = new Promise((resolve) => {
+                let settled = false;
+                const finish = (ok) => {
+                    if (settled) return;
+                    settled = true;
+                    iframe.remove();
+                    resolve(ok);
+                };
+                try {
+                    w.addEventListener('afterprint', () => finish(true), { once: true });
+                } catch { }
+                setTimeout(() => finish(true), 1500);
+            });
+
+            try {
+                w.focus();
+                w.print();
+            } catch {
+                iframe.remove();
+                return false;
+            }
+
+            return await done;
+        }
+
+        async function runPrint(source) {
+            if (!isPrintEnabled()) {
+                setPrintStatus('Stampa: disabilitata');
+                return;
+            }
+            const limitSession = getLimitSession();
+            if (limitSession > 0 && sessionPrintCount >= limitSession) {
+                setPrintStatus('Stampa: limite sessione');
+                return;
+            }
+            const eventName = getCurrentEventName();
+            const limitEvent = getLimitEvent();
+            if (limitEvent > 0 && eventName) {
+                const used = getEventPrintCount(eventName);
+                if (used >= limitEvent) {
+                    setPrintStatus('Stampa: limite evento');
+                    return;
+                }
+            }
+            const url = await composePrintImage();
+            if (!url) {
+                setPrintStatus('Stampa: nessuna foto');
+                setAdminPrintPreview('');
+                return;
+            }
+            setAdminPrintPreview(url);
+            setPrintStatus('Stampa: invio…');
+            try {
+                const ok = await browserPrintDataUrl(url);
+                if (ok) {
+                    sessionPrintCount += 1;
+                    incEventPrintCount(eventName);
+                    setPrintStatus('Stampa: ok');
+                } else {
+                    setPrintStatus('Stampa: popup bloccato');
+                }
+            } catch {
+                setPrintStatus('Stampa: errore');
             }
         }
 
-        refreshBtn.addEventListener('click', loadManifest);
-        dlAllBtn.addEventListener('click', downloadAll);
+        let isFinalQrOpen = false;
 
-        loadManifest();
+        function setFinalQrVisible(visible, qrUrl) {
+            const img = document.querySelector('#final [data-qr-final]');
+            const photo = document.querySelector('#final [data-photo-view]');
+            const layer = document.querySelector('#final [data-sticker-layer]');
+            if (img && img instanceof HTMLImageElement) {
+                img.style.display = visible ? 'block' : 'none';
+                if (visible && qrUrl) img.src = qrUrl;
+            }
+            if (photo && photo instanceof HTMLImageElement) photo.style.display = visible ? 'none' : '';
+            if (layer && layer instanceof HTMLElement) layer.style.display = visible ? 'none' : '';
+        }
+
+        function getQrCfg() {
+            const cloudName = document.getElementById('qrCloudName') instanceof HTMLInputElement ? document.getElementById('qrCloudName').value.trim() : '';
+            const preset = document.getElementById('qrUploadPreset') instanceof HTMLInputElement ? document.getElementById('qrUploadPreset').value.trim() : '';
+            const tpl = document.getElementById('qrLinkTemplate') instanceof HTMLInputElement ? document.getElementById('qrLinkTemplate').value.trim() : '';
+            const ttlEl = document.querySelector('#admin [data-key="qrTtlHours"]');
+            const sizeEl = document.querySelector('#admin [data-key="qrSizePx"]');
+            const ttlHours = ttlEl && ttlEl instanceof HTMLInputElement ? Math.max(1, Math.floor(Number(ttlEl.value) || 12)) : 12;
+            const sizePx = sizeEl && sizeEl instanceof HTMLInputElement ? Math.max(160, Math.floor(Number(sizeEl.value) || 320)) : 320;
+            const finalOnlyEl = document.getElementById('qrFinalOnly');
+            const finalOnly = Boolean(finalOnlyEl && finalOnlyEl instanceof HTMLInputElement && finalOnlyEl.checked);
+            return { cloudName, preset, tpl, ttlHours, sizePx, finalOnly };
+        }
+
+        function fillTpl(tpl, vars) {
+            return tpl.replace(/\{(\w+)\}/g, (_, k) => (vars[k] ?? ''));
+        }
+
+        function jsonDataUrl(obj) {
+            const json = JSON.stringify(obj);
+            const b64 = btoa(unescape(encodeURIComponent(json)));
+            return `data:application/json;base64,${b64}`;
+        }
+
+        async function cloudinaryUpload(resourceType, fileDataUrl, publicId, tags) {
+            const { cloudName, preset } = getQrCfg();
+            const endpointType = resourceType === 'raw' ? 'auto' : 'image';
+            const api = `https://api.cloudinary.com/v1_1/${cloudName}/${endpointType}/upload`;
+            const fd = new FormData();
+            if (fileDataUrl instanceof Blob) {
+                const safe = publicId.replace(/[^a-zA-Z0-9/_-]+/g, '_');
+                const isJs = typeof fileDataUrl.type === 'string' && fileDataUrl.type.includes('javascript');
+                const ext = resourceType === 'raw' ? (isJs ? 'js' : 'json') : 'bin';
+                fd.set('file', fileDataUrl, `${safe}.${ext}`);
+            } else {
+                fd.set('file', fileDataUrl);
+            }
+            fd.set('upload_preset', preset);
+            fd.set('public_id', publicId);
+            if (tags) fd.set('tags', tags);
+            const res = await fetch(api, { method: 'POST', body: fd });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                const errMsg = typeof data?.error?.message === 'string' ? data.error.message : `HTTP_${res.status}`;
+                throw new Error(`cloudinary_upload:${errMsg}`);
+            }
+            const pid = typeof data?.public_id === 'string' ? data.public_id : publicId;
+            const finalType = typeof data?.resource_type === 'string' ? data.resource_type : resourceType;
+            const fmt = typeof data?.format === 'string' ? data.format : (finalType === 'raw' ? 'json' : 'png');
+            const base = `https://res.cloudinary.com/${cloudName}`;
+            return finalType === 'raw' ? `${base}/raw/upload/${pid}.${fmt}` : `${base}/image/upload/${pid}.${fmt}`;
+        }
+
+        async function publishCurrentSessionQr() {
+            ensureSessionId();
+            const cfg = getQrCfg();
+            if (!cfg.cloudName || !cfg.preset) throw new Error('qr_cfg_missing');
+
+            const finalDataUrl = await composePrintImage();
+            if (!finalDataUrl) throw new Error('qr_no_photo');
+
+            const baseId = `pb_sessions/${currentSessionId}`;
+            const tag = `pb_session_${currentSessionId}`;
+
+            if (cfg.finalOnly) {
+                const finalUrl = await cloudinaryUpload('image', finalDataUrl, `${baseId}/final`, tag);
+                let sessionLink = finalUrl || finalDataUrl;
+                if (cfg.tpl && finalUrl) {
+                    sessionLink = fillTpl(cfg.tpl, {
+                        eventId: encodeURIComponent(getCurrentEventName()),
+                        sessionId: encodeURIComponent(currentSessionId),
+                        finalUrl: encodeURIComponent(finalUrl),
+                    });
+                }
+                const s = cfg.sizePx;
+                const qrImgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${s}x${s}&data=${encodeURIComponent(sessionLink)}&cb=${s}_${Date.now()}`;
+                return { sessionLink, qrImgUrl };
+            }
+
+            const expiresAt = Date.now() + cfg.ttlHours * 3600 * 1000;
+
+            const out = [];
+            let origIdx = 1;
+            for (const u of capturedShots) {
+                if (!u) continue;
+                const url = await cloudinaryUpload('image', u, `${baseId}/original_${origIdx++}`, tag);
+                if (url) out.push({ type: 'original', url, createdAt: currentSessionCreatedAt });
+            }
+            if (capturedPhotoUrl) {
+                const url = await cloudinaryUpload('image', capturedPhotoUrl, `${baseId}/layout`, tag);
+                if (url) out.push({ type: 'layout', url, createdAt: currentSessionCreatedAt });
+            }
+            const finalUrl = await cloudinaryUpload('image', finalDataUrl, `${baseId}/final`, tag);
+            if (finalUrl) out.push({ type: 'final', url: finalUrl, createdAt: Date.now() });
+            for (const it of sessionExtraItems) {
+                if (!it?.dataUrl) continue;
+                const pid = `${baseId}/${it.type}_${it.createdAt}`;
+                const url = await cloudinaryUpload('image', it.dataUrl, pid, tag);
+                if (url) out.push({ type: it.type, url, createdAt: it.createdAt });
+            }
+
+            const manifest = {
+                eventName: getCurrentEventName(),
+                sessionId: currentSessionId,
+                createdAt: currentSessionCreatedAt,
+                expiresAt,
+                items: out,
+            };
+            const manifestJs = `window.__pbManifest=${JSON.stringify(manifest)};`;
+            const manifestBlob = new Blob([manifestJs], { type: 'application/javascript' });
+            const manifestUrl = await cloudinaryUpload('raw', manifestBlob, `${baseId}/manifest`, tag);
+            const sessionLink = cfg.tpl ? fillTpl(cfg.tpl, {
+                eventId: encodeURIComponent(getCurrentEventName()),
+                sessionId: encodeURIComponent(currentSessionId),
+                manifestUrl: encodeURIComponent(manifestUrl),
+            }) : manifestUrl;
+            const s = cfg.sizePx;
+            const qrImgUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${s}x${s}&data=${encodeURIComponent(sessionLink)}&cb=${s}_${Date.now()}`;
+            return { sessionLink, qrImgUrl };
+        }
+
+        async function toggleFinalQr() {
+            if (isFinalQrOpen) {
+                isFinalQrOpen = false;
+                setFinalQrVisible(false, '');
+                return;
+            }
+            const btn = document.querySelector('#final [data-final-qr]');
+            if (btn && btn instanceof HTMLButtonElement) btn.disabled = true;
+            try {
+                const { qrImgUrl, sessionLink } = await publishCurrentSessionQr();
+                isFinalQrOpen = true;
+                setFinalQrVisible(true, qrImgUrl);
+            } catch (e) {
+                const msg = e && typeof e === 'object' && 'message' in e ? String(e.message) : 'errore';
+                if (msg === 'qr_cfg_missing') {
+                    alert('QR Code: compila Cloud name e Upload preset in Admin → QR Code, poi premi Salva tutto.');
+                } else if (msg === 'qr_no_photo') {
+                    alert('QR Code: nessuna foto disponibile. Fai uno scatto e arriva fino a Finale, poi riprova.');
+                } else if (msg.startsWith('cloudinary_upload:')) {
+                    const detail = msg.slice('cloudinary_upload:'.length).trim();
+                    console.error('QR Cloudinary upload error:', detail);
+                    prompt('Copia e incolla qui il Dettaglio (Ctrl+C):', detail);
+                } else {
+                    alert(`QR Code: errore (${msg}).`);
+                }
+            } finally {
+                if (btn && btn instanceof HTMLButtonElement) btn.disabled = false;
+            }
+        }
+
+        function collectAdminConfig() {
+            const els = Array.from(document.querySelectorAll('#admin input[id], #admin select[id], #admin textarea[id]'));
+            const cfg = {};
+            for (const el of els) {
+                if (el instanceof HTMLInputElement && el.type === 'checkbox') {
+                    cfg[el.id] = el.checked;
+                } else {
+                    cfg[el.id] = el.value;
+                }
+            }
+            return cfg;
+        }
+
+        function applyAdminConfig(cfg) {
+            if (!cfg || typeof cfg !== 'object') return;
+            for (const [id, val] of Object.entries(cfg)) {
+                const el = document.getElementById(id);
+                if (!el) continue;
+                if (el instanceof HTMLInputElement && el.type === 'checkbox') {
+                    el.checked = Boolean(val);
+                } else if (el instanceof HTMLSelectElement) {
+                    const targetValue = String(val);
+                    const hasOption = Array.from(el.options).some((o) => o.value === targetValue);
+                    if (hasOption) el.value = targetValue;
+                } else if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) {
+                    el.value = String(val);
+                }
+            }
+        }
+
+        function saveAdminConfig() {
+            writeStore(ADMIN_CONFIG_KEY, collectAdminConfig());
+        }
+
+        function loadAdminConfig() {
+            const cfg = readStore(ADMIN_CONFIG_KEY, null);
+            if (cfg) applyAdminConfig(cfg);
+        }
+
+        function getEventPresets() {
+            if (eventPresetsCache) return eventPresetsCache;
+            const presets = readStore(EVENT_PRESETS_KEY, {});
+            eventPresetsCache = presets;
+            return presets;
+        }
+
+        function setEventPresets(presets) {
+            eventPresetsCache = presets;
+            writeStore(EVENT_PRESETS_KEY, presets);
+        }
+
+        function populateEventRecall() {
+            const select = document.getElementById('eventRecall');
+            if (!select || !(select instanceof HTMLSelectElement)) return;
+            const placeholderText = select.options[0]?.textContent ?? 'Seleziona evento salvato';
+            const presets = getEventPresets();
+            const names = Object.keys(presets).sort((a, b) => a.localeCompare(b));
+
+            select.innerHTML = '';
+            const placeholder = document.createElement('option');
+            placeholder.textContent = placeholderText;
+            placeholder.value = '';
+            select.appendChild(placeholder);
+
+            for (const name of names) {
+                const opt = document.createElement('option');
+                opt.value = name;
+                opt.textContent = name;
+                select.appendChild(opt);
+            }
+        }
+
+        function saveEventPreset() {
+            const nameEl = document.getElementById('eventName');
+            if (!nameEl || !(nameEl instanceof HTMLInputElement)) return false;
+            const name = nameEl.value.trim();
+            if (!name) return false;
+
+            const presets = getEventPresets();
+            presets[name] = {
+                savedAt: Date.now(),
+                config: collectAdminConfig(),
+            };
+            setEventPresets(presets);
+            populateEventRecall();
+
+            const recall = document.getElementById('eventRecall');
+            if (recall && recall instanceof HTMLSelectElement) recall.value = name;
+            return true;
+        }
+
+        function deleteSelectedEventPreset() {
+            const recall = document.getElementById('eventRecall');
+            if (!recall || !(recall instanceof HTMLSelectElement)) return;
+            const selected = recall.value.trim();
+            if (!selected) return;
+
+            const presets = getEventPresets();
+            if (!presets[selected]) return;
+            delete presets[selected];
+            setEventPresets(presets);
+            populateEventRecall();
+        }
+
+        function bindEventRecall() {
+            const recall = document.getElementById('eventRecall');
+            if (!recall || !(recall instanceof HTMLSelectElement)) return;
+            if (recall.dataset.bound === '1') return;
+            recall.dataset.bound = '1';
+            recall.addEventListener('change', () => {
+                const selected = recall.value.trim();
+                if (!selected) return;
+                const presets = getEventPresets();
+                const preset = presets[selected];
+                if (!preset || !preset.config) return;
+                applyAdminConfig(preset.config);
+                initCameraSliders();
+                loadEventLayoutFromInput();
+                renderEventEditor();
+                updateEventLayerButtons();
+                syncRuntimeEventFromAdmin();
+                applyEventIntroVideoFromRuntime();
+                renderCaptureLayoutOverlay();
+                updateShotProgress();
+            });
+        }
+
+        populateEventRecall();
+        bindEventRecall();
+        loadAdminConfig();
+        loadEventLayoutFromInput();
+        initCameraSliders();
+        applyClassicFilter();
+        populateStickers();
+        renderStickerLayers();
+        renderEventEditor();
+        updateEventLayerButtons();
+        syncRuntimeEventFromAdmin();
+        applyEventIntroVideoFromRuntime();
+        updateCanonBridgeStatus();
+
+        ensureSessionId();
+        const forced = typeof window.__pbForcePage === 'string' ? window.__pbForcePage.trim() : '';
+        go(forced || getFirstUserPage());
     </script>
 </body>
 </html>
