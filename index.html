@@ -78,6 +78,76 @@
             return v;
         }
 
+        function getSingleUrl() {
+            let v = (qs.get('u') || qs.get('url') || '').trim();
+            if (!v) return '';
+            for (let i = 0; i < 2; i++) {
+                if (v.startsWith('http://') || v.startsWith('https://')) return v;
+                if (!/%[0-9A-Fa-f]{2}/.test(v)) return v;
+                try { v = decodeURIComponent(v); } catch { return v; }
+            }
+            return v;
+        }
+
+        function makeDownloadUrl(url) {
+            const u = String(url || '');
+            if (!u) return '';
+            if (u.includes('/image/upload/') && !u.includes('/image/upload/fl_attachment')) {
+                return u.replace('/image/upload/', '/image/upload/fl_attachment/');
+            }
+            return u;
+        }
+
+        function renderSingle(url) {
+            lastManifest = { items: [{ type: 'final', url, createdAt: Date.now() }] };
+            grid.innerHTML = '';
+            expiredCard.style.display = 'none';
+            setStatus('Foto pronta');
+
+            const card = document.createElement('a');
+            card.className = 'item';
+            card.href = url;
+            card.target = '_blank';
+            card.rel = 'noopener noreferrer';
+
+            const img = document.createElement('img');
+            img.loading = 'eager';
+            img.alt = 'Foto';
+            img.src = url;
+
+            const meta = document.createElement('div');
+            meta.className = 'meta';
+
+            const tag = document.createElement('div');
+            tag.className = 'tag';
+            tag.textContent = 'Foto';
+
+            const dl = document.createElement('a');
+            dl.className = 'link';
+            dl.href = makeDownloadUrl(url);
+            dl.target = '_blank';
+            dl.rel = 'noopener noreferrer';
+            dl.textContent = 'Scarica';
+
+            meta.appendChild(tag);
+            meta.appendChild(dl);
+            card.appendChild(img);
+            card.appendChild(meta);
+            grid.appendChild(card);
+
+            refreshBtn.disabled = true;
+            dlAllBtn.textContent = 'Scarica';
+            dlAllBtn.onclick = () => {
+                const a = document.createElement('a');
+                a.href = makeDownloadUrl(url);
+                a.target = '_blank';
+                a.rel = 'noopener noreferrer';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+            };
+        }
+
         function sortItems(items) {
             const rank = { original: 1, layout: 2, final: 3, ai: 4 };
             return [...items].sort((a, b) => {
@@ -199,6 +269,13 @@
         }
 
         async function loadManifest() {
+            const single = getSingleUrl();
+            if (single) {
+                manifestInput.value = single;
+                renderSingle(single);
+                return;
+            }
+
             const url = getManifestUrl();
             if (!url) {
                 setStatus('Incolla un manifestUrl oppure apri con ?m=...');
