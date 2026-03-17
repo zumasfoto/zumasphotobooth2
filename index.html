@@ -68,7 +68,14 @@
         function setStatus(text) { statusEl.textContent = text; }
 
         function getManifestUrl() {
-            return (qs.get('m') || manifestInput.value || '').trim();
+            let v = (qs.get('m') || manifestInput.value || '').trim();
+            if (!v) return '';
+            for (let i = 0; i < 2; i++) {
+                if (v.startsWith('http://') || v.startsWith('https://')) return v;
+                if (!/%[0-9A-Fa-f]{2}/.test(v)) return v;
+                try { v = decodeURIComponent(v); } catch { return v; }
+            }
+            return v;
         }
 
         function sortItems(items) {
@@ -96,6 +103,14 @@
             const title = manifest.eventName ? `Evento: ${manifest.eventName}` : 'Evento';
             const sid = manifest.sessionId ? `Sessione: ${manifest.sessionId}` : '';
             setStatus(`${title}${sid ? ' • ' + sid : ''} • ${items.length} file`);
+
+            if (items.length === 0) {
+                const msg = document.createElement('div');
+                msg.className = 'card muted';
+                msg.textContent = 'Nessuna foto trovata in questa sessione. Rigenera il QR dopo aver fatto almeno uno scatto (e aver raggiunto la schermata Finale).';
+                grid.appendChild(msg);
+                return;
+            }
 
             for (const it of items) {
                 const url = String(it.url || '');
@@ -140,6 +155,49 @@
             }
         }
 
+        function loadManifestFromScript(url) {
+            return new Promise((resolve, reject) => {
+                window.__pbManifest = null;
+                const s = document.createElement('script');
+                s.async = true;
+                s.src = url + (url.includes('?') ? '&' : '?') + 'cb=' + Date.now();
+                const timeout = setTimeout(() => {
+                    s.remove();
+                    reject(new Error('timeout'));
+                }, 6000);
+                s.onload = () => {
+                    clearTimeout(timeout);
+                    const m = window.__pbManifest;
+                    s.remove();
+                    if (m && typeof m === 'object') resolve(m);
+                    else reject(new Error('no_manifest'));
+                };
+                s.onerror = () => {
+                    clearTimeout(timeout);
+                    s.remove();
+                    reject(new Error('script_error'));
+                };
+                document.head.appendChild(s);
+            });
+        }
+
+        function parseManifestText(text) {
+            const t = String(text || '').trim();
+            if (!t) throw new Error('empty');
+            if (t.startsWith('window.__pbManifest')) {
+                let s = t.replace(/^window\.__pbManifest\s*=\s*/, '');
+                s = s.replace(/;\s*$/, '');
+                return JSON.parse(s);
+            }
+            return JSON.parse(t);
+        }
+
+        async function fetchText(url) {
+            const res = await fetch(url, { cache: 'no-store' });
+            if (!res.ok) throw new Error(`http_${res.status}`);
+            return await res.text();
+        }
+
         async function loadManifest() {
             const url = getManifestUrl();
             if (!url) {
@@ -148,11 +206,30 @@
             }
             manifestInput.value = url;
             setStatus('Carico…');
+
+            // 1) Prova via <script> (utile quando il manifest è JS: window.__pbManifest=...)
             try {
-                const res = await fetch(url, { cache: 'no-store' });
-                if (!res.ok) throw new Error('manifest_fetch');
-                const data = await res.json();
+                const data = await loadManifestFromScript(url);
                 render(data);
+                return;
+            } catch { }
+
+            // 2) Prova fetch diretto come testo (JSON oppure JS) e parsing
+            try {
+                const text = await fetchText(url);
+                const data = parseManifestText(text);
+                render(data);
+                return;
+            } catch { }
+
+            // 3) Fallback CORS via proxy pubblico
+            try {
+                setStatus('Carico (fallback)…');
+                const proxy = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+                const text = await fetchText(proxy);
+                const data = parseManifestText(text);
+                render(data);
+                return;
             } catch {
                 setStatus('Errore nel caricamento del manifest.');
             }
